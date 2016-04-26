@@ -4,7 +4,6 @@
 (def devices (atom {}))
 
 (defn list [nid]
-  (clojure.pprint/pprint @devices)
   (into {} (filter #(= (clojure.core/get (second %) :network) nid) @devices)))
 
 (defn get [key]

@@ -1,13 +1,17 @@
 (ns api-dlms-demo.handler
-  (:use ring.util.response)
-  (:require [compojure.core :refer :all]
+  (:use [org.httpkit.server :only [run-server]])
+  (:require [ring.middleware.defaults :refer [wrap-defaults site-defaults]]
+            [ring.middleware.reload :as reload]
+            [ring.middleware.logger :as logger]
+            [ring.util.response :refer [content-type status file-response resource-response]]
+            [compojure.core :refer :all]
             [compojure.route :as route]
-            [ring.middleware.defaults :refer [wrap-defaults site-defaults]]
+            [compojure.handler :refer [site]]
             [clojure.data.json :as json]
             [http.async.client :as http]
             [api-dlms-demo.store.network :as networks]
             [api-dlms-demo.store.device :as devices]
-            [compojure.response :as response]))
+            [api-dlms-demo.connection :as connection]))
 
 (def options {:remote "http://http.stage.highlands.tiny-mesh.com/v2"
                :user "dev@nyx.co"
@@ -72,45 +76,29 @@
       )))
 
 
-(defn post-action [nid device])
-
-(defn get-stream [nid device])
-
-(defn index [] (rfn request (-> (resource-response "index.html" {:root "public"})
-                                (content-type "text/html"))))
-
-
 (defroutes app-routes
-  (GET "/api/network" [] (get-networks))
-  (GET "/api/network/:nid" [nid] (get-network nid))
+  (GET  "/api/network" [] (get-networks))
+  (GET  "/api/network/:nid" [nid] (get-network nid))
   (POST "/api/network/:nid" [nid] (post-network nid))
-  (POST "/api/action/:nid/:device" [nid device] (post-action nid device))
-  (GET "/api/stream/:nid/:device" [nid device] (get-stream nid device))
+  (GET "/api/connection/:nid/:device" [] connection/handler)
   (route/resources "/")
-  (index))
-
-(def config
-  {:params    {:urlencoded true
-               :multipart  true
-               :nested     true
-               :keywordize true}
-   :cookies   false
-   :session   {:flash true
-               :cookie-attrs {:http-only true}}
-   :security  false
-   :static    {:resources "public"}
-   :responses {:not-modified-responses true
-               :absolute-redirects     true
-               :content-types          true
-               :default-charset        "utf-8"}})
+  (rfn request
+    (-> (file-response "index.html" {:root "resources/public"})
+        (content-type "text/html")
+        (status 200)))
+  (route/not-found "nope"))
 
 
-(defn wrap-dir-index [handler]
-  (fn [req]
-    (handler
-      (update-in req [:uri] #(if (= "/" %) "/index.html" %)))
-    ))
 
-(def app
-  (-> (wrap-defaults app-routes config)
-      (wrap-dir-index)))
+;(def app
+;  (-> (wrap-defaults app-routes config)
+;      (wrap-dir-index)))
+
+
+(defn -main [& args]
+  (org.apache.log4j.BasicConfigurator/configure)
+
+  (-> (site #'app-routes)
+      (logger/wrap-with-logger)
+      (reload/wrap-reload)
+      (run-server {:port 3000})))
