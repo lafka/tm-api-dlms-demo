@@ -20,9 +20,13 @@ class App extends React.Component {
    componentWillMount() {
       this._mounted = true
 
-      NetworkActions.listNetworks()
+      if (!localStorage.networks)
+         NetworkActions.listNetworks()
+      else
+         this.setState({networks: JSON.parse(localStorage.networks)})
 
       NetworkStore.addChangeListener( this._changeListener = () => {
+         localStorage.networks = JSON.stringify(NetworkStore.networks)
          this.setState({networks: NetworkStore.networks})
       })
    }
@@ -42,7 +46,7 @@ class App extends React.Component {
 
       console.log(this.props.params, _.find(networks, {key: this.props.params.nid}))
       return (
-         <Grid>
+         <Grid fluid={true}>
             {React.cloneElement(this.props.children, {
                networks: networks,
                network: _.find(networks, {key: this.props.params.nid})

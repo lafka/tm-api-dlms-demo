@@ -15,7 +15,7 @@ export default class Index extends React.Component {
       <div>
          <Row>
             <Col xs={12} sm={4}>
-               <h1>Device</h1>
+               <h1>Networks</h1>
             </Col>
             <Col xs={12} sm={8} style={{paddingTop: '25px'}}>
                <Navigation {...this.props} />

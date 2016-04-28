@@ -9,7 +9,7 @@ export default class Network extends React.Component {
       // app feeds the network... no point in having changelisteners here
       let {network} = this.props
 
-      console.log('render: network', network, this.props.params.nid)
+      console.log('render: network ' + this.props.params.nid)
 
       return (
          <div>

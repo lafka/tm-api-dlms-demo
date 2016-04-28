@@ -2,6 +2,8 @@ import request from 'superagent'
 import {EventEmitter} from 'events'
 import Flux from 'flux'
 
+import {Base64Binary} from './Base64.js'
+
 export var Dispatcher = new Flux.Dispatcher()
 
 const http = {
@@ -42,7 +44,8 @@ export const Constants = {
 
    'conn:open':  'conn:open',
    'conn:error': 'conn:error',
-   'conn:msg':   'conn:msg',
+   'conn:send':  'conn:send',
+   'conn:recv':  'conn:recv',
    'conn:close': 'conn:close',
 }
 
@@ -94,12 +97,12 @@ export const NetworkActions = {
 
 export const ConnActions = {
    open: function(ref) {
-      return Promise(function(resolve, reject) {
+      return new Promise(function(resolve, reject) {
 
          if (connstore.isOpen(ref))
             resolve(connstore.conn(ref))
 
-         let conn = new WebSocket("ws://" + window.location.host + "/api/connection")
+         let conn = new WebSocket("ws://" + window.location.host + "/api/connection/" + ref)
          conn.onerror = (err) => {
             console.log('ws[' + ref + '] ERROR: ' + error)
             reject(err)
@@ -107,27 +110,74 @@ export const ConnActions = {
 
          conn.onopen = () => {
             console.log('ws[' + ref + '] CONNECT')
+
+            Dispatcher.dispatch({
+               action: Constants['conn:open'],
+               ref: ref,
+               conn: conn,
+            })
+
             resolve(conn)
          }
 
-         conn.onMessage = (msg) => console.log('ws[' + ref + '] MSG', msg)
+         conn.onclose = () => {
+            console.log('ws[' + ref + '] CLOSE')
+
+            Dispatcher.dispatch({
+               action: Constants['conn:close'],
+               ref: ref,
+            })
+         }
+
+         conn.onmessage = (msg) => {
+            console.log('ws[' + ref + '] MSG', msg.data)
+
+            let data = JSON.parse(msg.data)
+
+            Dispatcher.dispatch({
+               action: Constants['conn:recv'],
+               ref: ref,
+               data: _.merge({origin: 'webclient'}, data)
+            })
+         }
       })
    },
 
    sendConnect: function(ref) {
+      ConnActions.sendAction(ref, 'connect')
    },
 
    sendDisconnect: function(ref) {
+      ConnActions.sendAction(ref, 'disconnect')
    },
 
    getAttrs: function(ref) {
+      ConnActions.sendAction(ref, 'get-attributes')
    },
 
    getSerialNumber: function(ref) {
+      ConnActions.sendAction(ref, 'get-serial-number')
    },
 
    getEventLog: function(ref) {
+      ConnActions.sendAction(ref, 'get-serial-number')
    },
+
+   sendAction: function(ref, action, data) {
+      data = data || {}
+
+      if ('open' !== connstore.isOpen(ref))
+         return 'closed'
+
+      let conn = connstore.conn(ref)
+      conn.send(JSON.stringify(_.merge({ev: action, origin: 'webclient'}, data)))
+
+      Dispatcher.dispatch({
+         action: Constants['conn:send'],
+         ref: ref,
+         data: _.merge({ev: action, origin: 'webclient'}, data)
+      })
+   }
 }
 
 
@@ -143,13 +193,35 @@ class ConnStore extends BaseStore {
 
          switch (action) {
             case Constants['conn:open']:
+               if (!this._connections[ev.ref])
+                  this._connections[ev.ref] = {
+                     state: null,
+                     conn: null,
+                     data: []
+                  }
+
+               this._connections[ev.ref].state = 'open'
+               this._connections[ev.ref].conn = ev.conn
+
+               this.emitChange()
                break
 
             case Constants['conn:error']:
                break
 
             case Constants['conn:close']:
+               this._connections[ev.ref].state = 'closed'
+               this._connections[ev.ref].conn = null
+
+               this.emitChange()
                break
+
+            case Constants['conn:recv']:
+            case Constants['conn:send']:
+               this._connections[ev.ref].data.push(ev.data)
+
+               this.emitChange()
+               break;
          }
       })
    }
@@ -160,6 +232,10 @@ class ConnStore extends BaseStore {
 
    conn(ref) {
       return (this._connections[ref] || {}).conn
+   }
+
+   data(ref) {
+      return (this._connections[ref] || {}).data
    }
 }
 
