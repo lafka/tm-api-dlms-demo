@@ -89,15 +89,7 @@
   (route/not-found "nope"))
 
 
-
-;(def app
-;  (-> (wrap-defaults app-routes config)
-;      (wrap-dir-index)))
-
-
-(defn -main [& args]
-  (org.apache.log4j.BasicConfigurator/configure)
-
+(defn start []
   (-> (site #'app-routes)
       (logger/wrap-with-logger)
       (reload/wrap-reload)
