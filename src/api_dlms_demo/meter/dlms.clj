@@ -7,12 +7,12 @@
   (new DLMSSettings
        AuthenticationMechanism/NONE       ;; authenticationMechanism
        (byte-array [])                    ;; authenticationKey
-       ConfirmedMode/UNCONFIRMED          ;; confirmedMode
+       ConfirmedMode/CONFIRMED            ;; confirmedMode
        (byte-array [])                    ;; globalEncryptionKey
        (byte-array [])                    ;; systemTitle
        0                                  ;; challengeLength
        0                                  ;; deviceId
-       0                                  ;; responseTimeout
+       10000                              ;; responseTimeout
        0                                  ;; messageFragmentTimeout
        ""                                 ;; manufactureId
        DataTransmissionLevel/UNENCRYPTED  ;; dataTransmissionLevel

@@ -6,18 +6,21 @@
             [api-dlms-demo.cloud.transport :as transport]
             [clojure.data.json :as json]
             [clojure.core.async :as async])
-  (:import (org.openmuc.jdlms CloudConnectionBuilder AttributeAddress ObisCode LnClientConnection)
+  (:import (org.openmuc.jdlms CloudConnectionBuilder AttributeAddress ObisCode LnClientConnection AccessResultCode)
            (org.openmuc.jdlms.interfaceclass.attribute AssociationLnAttribute)
-           (java.io EOFException)))
+           (java.io EOFException IOException)
+           (java.util.concurrent TimeoutException)))
 
 
 (defn parse [buf]
   (json/read-str buf :key-fn #(keyword %)))
 
-(defn publish-not-connected [ref]
+(defn publish-error [ref message]
   (pubsub/publish ref {:ev     :error
                        :origin "client"
-                       :message "not connected"}))
+                       :message message}))
+
+(defn publish-not-connected [ref] (publish-error ref "not connected"))
 
 (defn handle-connect [ref subscriber]
   (let [transport (transport/-transport-factory ref subscriber)
@@ -29,13 +32,18 @@
     (try
       (do
         (CloudConnectionBuilder/connect (connection/put ref (.buildLnConnection builder)))
-        (pubsub/publish ref {:ev     :connected
-                             :origin "client"
+        (pubsub/publish ref {:ev      :connected
+                             :origin  "client"
                              :message "connected"})
         )
+      (catch IOException e (do
+        (pubsub/publish ref {:ev      :error
+                            :origin  "client"
+                            :message (.getMessage e)})
+                             ))
       (catch EOFException e (do
-        (pubsub/publish ref {:ev     :error
-                             :origin "client"
+        (pubsub/publish ref {:ev      :error
+                             :origin  "client"
                              :message (.getMessage e)})
         (.close transport)
         (connection/delete ref))))
@@ -47,8 +55,26 @@
       nil (publish-not-connected ref)
       (.disconnect conn))))
 
-(defn handle-get-serial-number [ref subscriber] nil)
-(defn handle-get-attributes [ref subscriber] nil)
+(defn handle-get-serial-number [ref subscriber]
+  (try
+    (let [conn (connection/get ref)
+          attr (new AttributeAddress AssociationLnAttribute/LOGICAL_NAME (new ObisCode "1.0.0.0.255.255"))
+          results (.get (.get conn (into-array AttributeAddress [attr])) 0)]
+
+    (clojure.pprint/pprint results))
+   (catch TimeoutException e (publish-error ref (str "timedout waiting for electricity_id: " (.getMessage e))))))
+
+(defn handle-get-attributes [ref subscriber]
+  (try
+  (let [conn (connection/get ref)
+        attr (new AttributeAddress AssociationLnAttribute/OBJECT_LIST (new ObisCode "0.0.40.0.0.255"))
+        results (.get (.get conn (into-array AttributeAddress [attr])) 0)]
+
+    (clojure.pprint/pprint results)
+
+      )
+  (catch TimeoutException e (publish-error ref (str "timed out waiting for object_list response" (.getMessage e))))))
+
 (defn handle-get-eventlog [ref subscriber] nil)
 
 

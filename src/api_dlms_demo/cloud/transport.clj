@@ -9,7 +9,8 @@
   (:import (org.openmuc.jdlms HexConverter)
            (java.util Arrays Base64)
            (api_dlms_demo.cloud CloudTransportLayerConnection ICloudTransportLayerConnection)
-           (java.io IOException EOFException)))
+           (java.io IOException EOFException)
+           (org.openmuc.jdlms.internal.transportlayer.hdlc FrameType)))
 
 
 (def cliopts (atom {:remote "http://http.stage.highlands.tiny-mesh.com/v2",
@@ -25,7 +26,7 @@
         endpoint (str remote path)]
 
     (with-open [client (http/create-client )]
-      (println "transport/post " endpoint body)
+;      (println "transport/post " endpoint body)
       (let [resp (http/POST client endpoint :body body :auth {:type :basic :user user :password password :preemptive true})
             buf (-> resp
                 http/await
@@ -36,7 +37,7 @@
 
 
 
-(defn open-transport [path options pipeline]
+(defn open-transport [path options pipeline listener state reset-state]
   (with-open [client (http/create-client)]
     (let [url (str (get options :remote) "/messages/" path "?data.encoding=base64&date.from=NOW&stream=true&continuous=true")
           user (get options :user)
@@ -52,21 +53,32 @@
           (string/blank? s) (println "transport/event: keep-alive")
 
           s (let [data (json/read-str s :key-fn #(keyword %))]
-              (println "transport/event: json payload" s)
               (if (= "serial" (get-in data [:proto/tm :detail]))
                 (let [buf (.decode (Base64/getDecoder) (get-in data [:proto/tm :data]))
                       frame (hdlc/decode buf)]
+                  (reset-state (hdlc/inc-recv-seq state))
+                  (println "transport/event: json payload" s)
 
                   (pubsub/publish (keyword path) {:ev     :recv
                                                   :origin "transport/recv"
                                                   :hdlc   (debug/debug frame)
                                                   :raw    (get-in data [:proto/tm :data])})
 
-                  (async/>!! pipeline frame))
+
+                  (async/put! pipeline frame)
+
+                  (cond
+                    (= FrameType/INFORMATION (.frameType frame))
+                      (do
+                        (println "info frame:" (HexConverter/toHexString (.informationField frame)))
+                        (.dataReceived listener
+                                       (byte-array (drop 3 (.informationField frame))))))
+                    (println "pushed event"))
 
                 (pubsub/publish (keyword path) (merge {:ev :meta :origin "transport/cloud"} data))
                 ;(.dataReceived listener buf) )
                 ))))
+
       (println "transport/closed" path)
       )))
 
@@ -77,6 +89,7 @@
 (defn -transport-factory
   [ref subscriber] ; ref :: keyword, pipeline :: pubsub/subscribe
   (let [state (atom (hdlc/init ref))
+        reset-state (fn [newstate] (reset! state newstate))
         path (subs (str ref) 1)
         pipeline (async/chan)
         options @cliopts]
@@ -84,13 +97,14 @@
     (reify ICloudTransportLayerConnection
       (startListening [this listener]
         (println "transport/open[" path "]")
-        (go (open-transport path options pipeline))
+        (go (open-transport path options pipeline listener @state reset-state))
 
         ;; wait for cloud to initiate connection
         (let [[:continue resp] (async/<!! pipeline)]
           ; first update state to avoid deadlock where connect fails
-          (reset! state (assoc @state :resp resp))
-          (let [ [resp newstate] (hdlc/connect this @state)]
+          (reset-state (assoc @state :resp resp))
+
+          (let [ [resp newstate] (hdlc/connect this @state reset-state)]
             (case resp
               :ack (reset! state newstate)
               :disconnect (throw (EOFException. "remote sent disconnect"))
@@ -117,13 +131,15 @@
         (let [[frame newstate] (hdlc/build-info @state (byte-array (concat llc-req buf)))
               encoded (hdlc/encode frame)]
 
+          (reset-state (hdlc/inc-send-seq @state))
+
           (pubsub/publish (keyword path) {:ev     :hdlc
                                           :origin "transport/send"
                                           :hdlc   (debug/debug frame)
                                           :raw    encoded})
 
           (.sendraw this encoded)
-          (reset! state newstate)))
+          (reset-state (hdlc/inc-send-seq @state))))
 
 
       (poll [this]
@@ -132,6 +148,6 @@
 
       (close [this]
         (async/close! pipeline)
-        (hdlc/disconnect this @state)
+        (hdlc/disconnect this @state reset-state)
         (http/cancel (get @state :resp))
         nil))))

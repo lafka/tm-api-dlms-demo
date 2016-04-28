@@ -50,6 +50,14 @@
    :negotiation (new HdlcParameterNegotiation HdlcParameterNegotiation/MIN_INFORMATION_LENGTH HdlcParameterNegotiation/MIN_WINDOW_SIZE)
    :buffer []} )
 
+(defn inc-recv-seq [state]
+  (assoc state :recvseq (mod (+ (get state :recvseq) 1) 8))
+  )
+
+(defn inc-send-seq [state]
+  (assoc state :recvseq (mod (+ (get state :recvseq) 1) 8))
+  )
+
 (defn encode [frame] (.encodeWithFlags frame))
 (defn decode [buf]
   (let [newbuf (Arrays/copyOfRange buf 1 (- (alength buf) 2))]
@@ -70,7 +78,8 @@
         true (connect transport state))
       )))
 
-(defn connect [transport state]
+(defn connect [transport state reset-state]
+  (reset-state (inc-send-seq state))
   (let [[frame state] (build-snrm state true)
         encoded (encode frame)]
 
@@ -90,9 +99,11 @@
       nil (publish-disconnected (get state :ref))
       (println "hdlc/disconnect got some event" (debug/frame-type frame)))))
 
-(defn disconnect [transport state]
+(defn disconnect [transport state reset-state]
+  (reset-state (inc-send-seq state))
   (let [[frame state] (build-disconnect state true)
         encoded (encode frame)]
+
 
     (pubsub/publish (get state :ref) {:ev     :hdlc
                                       :origin "transport/send"
