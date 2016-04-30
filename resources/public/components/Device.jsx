@@ -20,7 +20,7 @@ export default class Device extends React.Component {
 
       this.reqConnect = this.reqConnect.bind(this)
       this.reqAttrs = this.reqAttrs.bind(this)
-      this.reqSn = this.reqSn.bind(this)
+      this.reqInfo = this.reqInfo.bind(this)
       this.reqEventLog = this.reqEventLog.bind(this)
       this.reqDisconnect = this.reqDisconnect.bind(this)
   }
@@ -65,11 +65,11 @@ export default class Device extends React.Component {
     ConnActions.getAttrs(nid + "/" + device)
   }
 
-  reqSn(ev) {
+  reqInfo(ev) {
     ev.preventDefault()
     let {nid, device} = this.props.params
 
-    ConnActions.getSerialNumber(nid + "/" + device)
+    ConnActions.getInfo(nid + "/" + device)
   }
 
   reqEventLog(ev) {
@@ -106,6 +106,40 @@ export default class Device extends React.Component {
       return origin + "[" + ev + "]";
     } else if (ev === 'error') {
       return origin + "[" + ev + "] -> " + rest.message;
+    } else if (rest['get-attributes']) {
+      const fmtattrs = function(acc, input) {
+        let classId = input['class-id'],
+            {medium, obis, attributes, methods} = input,
+            strattrs = "",
+            strmethods = ""
+
+        strattrs = _.map(attributes, (a) =>
+            "\t\t"
+               + a['attribute-addr']
+               + ' : ' + a['id']
+               + ' @ ' + a['access-mode']
+               + ' / ' + a['selective-access'].join(', ')
+         ).join('\n')
+
+        strmethods = _.map(methods, (a) =>
+            "\t\t"
+               + a['method-addr']
+               + ' : ' + a['id']
+               + ' @ ' + a['access-mode']
+         ).join('\n')
+
+        return acc
+            + '\n' + medium
+            + " / " + classId
+            + " @ " + obis
+            + "\n\tAttributes:\n" + strattrs
+            + "\n\tMethods:\n" + strmethods
+      }
+
+      return 'get-attributes:\n' + _.reduce(rest['get-attributes'], fmtattrs, "")
+    } else if (rest['get-info']) {
+      return 'get-info:\n'
+         + '\t' + _.map(rest['get-info'], (v, k) => k + ":\t" + v).join('\n\t')
     }
 
     return origin + "[" + ev + "] -> " + JSON.stringify(rest)
@@ -134,7 +168,7 @@ export default class Device extends React.Component {
                <ListGroup>
                   <ListGroupItem onClick={this.reqConnect}>Connect Meter</ListGroupItem>
                   <ListGroupItem onClick={this.reqAttrs}>Get attributes</ListGroupItem>
-                  <ListGroupItem onClick={this.reqSn}>Get serial number</ListGroupItem>
+                  <ListGroupItem onClick={this.reqInfo}>Get device info</ListGroupItem>
                   <ListGroupItem onClick={this.reqEventLog}>Get event log</ListGroupItem>
                   <ListGroupItem onClick={this.reqDisconnect}>Disconnect Meter</ListGroupItem>
                </ListGroup>

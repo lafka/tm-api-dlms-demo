@@ -1,62 +1,71 @@
 (ns api-dlms-demo.meter.hdlc
   (:require [api-dlms-demo.pubsub :as pubsub]
-            [api-dlms-demo.meter.hdlc.debug :as debug])
+            [api-dlms-demo.meter.hdlc.debug :as debug]
+            [clojure.core.async :as async])
   (:import (org.openmuc.jdlms.internal.transportlayer.hdlc HdlcFrame HdlcAddressPair HdlcAddress FrameType HdlcParameterNegotiation)
            (java.io ByteArrayInputStream)
            (java.util Arrays Base64)))
 
-(defn build-snrm [state poll]
-  (let [src (get state :src)
-        dest (get state :dest)
-        ;;frame (new HdlcFrame (new HdlcAddressPair src dest) FrameType/SET_NORMAL_RESPONSEMODE)
-        negotiation (get state :negotiation)
-        frame (HdlcFrame/newSetNormalResponseModeFrame (new HdlcAddressPair src dest) negotiation poll)]
 
-    [frame state]
-    ))
+
+(defn init [ref]
+  {:ref         ref
+   :recvseq     0
+   :sendseq     -1
+   :src         (new HdlcAddress 32)   ;; is this wrong?
+   :dest        (new HdlcAddress 1) ;; is this right?
+   :negotiation (new HdlcParameterNegotiation HdlcParameterNegotiation/MIN_INFORMATION_LENGTH HdlcParameterNegotiation/MIN_WINDOW_SIZE)
+   :queue       (async/chan)
+   :buffer      (byte-array [])  ; input buffer used block responses from tinymesh
+   } )
+
+(defn inc-recv-seq [state]
+  (assoc state :recvseq (mod (+ (state :recvseq) 1) 8)))
+
+(defn inc-send-seq [state]
+  (assoc state :sendseq (mod (+ (state :sendseq) 1) 8)))
+
+
+; all functions  below here, except init/1, returns `[_any newstate]`
+
+
+(defn build-snrm [state poll]
+  (let [frame       (HdlcFrame/newSetNormalResponseModeFrame (new HdlcAddressPair
+                                                                  (state :src)
+                                                                  (state :dest))
+                                                             (state :negotiation)
+                                                             poll)]
+    [frame state] ))
 
 (defn build-ack [state poll]
-  (let [src (get state :src)
-        dest (get state :dest)
-        recvseq (get state :recvseq)
-        frame (HdlcFrame/newReceiveReadyFrame (new HdlcAddressPair src dest) recvseq poll)]
-
+  (let [frame   (HdlcFrame/newReceiveReadyFrame (new HdlcAddressPair
+                                                     (state :src)
+                                                     (state :dest))
+                                                (state :recvseq)
+                                                poll)]
     [frame state]
     ))
 
 (defn build-disconnect [state poll]
-  (let [src (get state :src)
-        dest (get state :dest)
-        frame (HdlcFrame/newDisconnectFrame (new HdlcAddressPair src dest) poll)]
+  (let [frame (HdlcFrame/newDisconnectFrame (new HdlcAddressPair
+                                                 (state :src)
+                                                 (state :dest))
+                                            poll)]
 
     [frame state]
     ))
 
 (defn build-info [state buf]
-  (let [src (get state :src)
-        dest (get state :dest)
-        sendseq (get state :sendseq)
-        recvseq (get state :recvseq)
-        frame (HdlcFrame/newInformationFrame (new HdlcAddressPair src dest) sendseq recvseq buf false)]
-
+  (let [state (inc-send-seq state)
+        frame   (HdlcFrame/newInformationFrame (new HdlcAddressPair
+                                                    (state :src)
+                                                    (state :dest))
+                                               (state :sendseq)
+                                               (state :recvseq)
+                                               buf
+                                               false)]
     [frame state]))
 
-(defn init [ref]
-  {:ref ref
-   :recvseq 0
-   :sendseq 0
-   :src (new HdlcAddress 32)   ;; is this wrong?
-   :dest (new HdlcAddress 1) ;; is this right?
-   :negotiation (new HdlcParameterNegotiation HdlcParameterNegotiation/MIN_INFORMATION_LENGTH HdlcParameterNegotiation/MIN_WINDOW_SIZE)
-   :buffer []} )
-
-(defn inc-recv-seq [state]
-  (assoc state :recvseq (mod (+ (get state :recvseq) 1) 8))
-  )
-
-(defn inc-send-seq [state]
-  (assoc state :recvseq (mod (+ (get state :recvseq) 1) 8))
-  )
 
 (defn encode [frame] (.encodeWithFlags frame))
 (defn decode [buf]
@@ -78,12 +87,11 @@
         true (connect transport state))
       )))
 
-(defn connect [transport state reset-state]
-  (reset-state (inc-send-seq state))
+(defn connect [transport state]
   (let [[frame state] (build-snrm state true)
         encoded (encode frame)]
 
-    (pubsub/publish (get state :ref) {:ev     :hdlc
+    (pubsub/publish (state :ref) {:ev     :hdlc
                                       :origin "transport/send"
                                       :hdlc   (debug/debug frame)
                                       :raw    encoded})
@@ -96,23 +104,26 @@
 (defn disconnect-await [transport state]
   (let [frame (.poll transport)]
     (case frame
-      nil (publish-disconnected (get state :ref))
-      (println "hdlc/disconnect got some event" (debug/frame-type frame)))))
+      nil (do
+            (async/close! (state :queue))
+            (publish-disconnected (state :ref))
+            [:closed state])
+      (do
+        (println "hdlc/disconnect got some event" (debug/frame-type frame))
+        [frame state]
+        ))))
 
-(defn disconnect [transport state reset-state]
-  (reset-state (inc-send-seq state))
+(defn disconnect [transport state]
   (let [[frame state] (build-disconnect state true)
         encoded (encode frame)]
 
 
-    (pubsub/publish (get state :ref) {:ev     :hdlc
-                                      :origin "transport/send"
-                                      :hdlc   (debug/debug frame)
-                                      :raw    encoded})
+    (pubsub/publish (state :ref) {:ev     :hdlc
+                                  :origin "transport/send"
+                                  :hdlc   (debug/debug frame)
+                                  :raw    encoded})
 
     (.sendraw transport encoded)
 
-    (disconnect-await transport state)
-
-    state
-    ))
+    (let [[_any state] (disconnect-await transport state)]
+      state)))

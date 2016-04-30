@@ -35,9 +35,31 @@
         (json/read-str buf :key-fn #(keyword %))))))
 
 
+(defn buffer [buf state]
+  (swap! state (fn [s] (assoc s :buffer (byte-array (concat (s :buffer) buf))))))
+
+(defn handle [ref buf pipeline listener state]
+  (let [frame (hdlc/decode buf)]
+
+    (swap! state assoc :buffer (byte-array []))
+
+    (pubsub/publish ref {:ev     :recv
+                                    :origin "transport/recv"
+                                    :hdlc   (debug/debug frame)
+                                    :raw    buf})
 
 
-(defn open-transport [path options pipeline listener state reset-state]
+    (async/put! pipeline frame)
+
+    (cond
+      (= FrameType/INFORMATION (.frameType frame))
+      (do
+        (swap! state hdlc/inc-recv-seq)
+        (.dataReceived listener
+                       (byte-array (drop 3 (.informationField frame))))))
+    ))
+
+(defn open-transport [path options pipeline listener state]
   (with-open [client (http/create-client)]
     (let [url (str (get options :remote) "/messages/" path "?data.encoding=base64&date.from=NOW&stream=true&continuous=true")
           user (get options :user)
@@ -52,28 +74,21 @@
         (cond
           (string/blank? s) (println "transport/event: keep-alive")
 
-          s (let [data (json/read-str s :key-fn #(keyword %))]
+          s (let [data (json/read-str s :key-fn #(keyword %))
+                  b64buf (get-in data [:proto/tm :data])]
+
               (if (= "serial" (get-in data [:proto/tm :detail]))
-                (let [buf (.decode (Base64/getDecoder) (get-in data [:proto/tm :data]))
-                      frame (hdlc/decode buf)]
-                  (reset-state (hdlc/inc-recv-seq state))
-                  (println "transport/event: json payload" s)
-
-                  (pubsub/publish (keyword path) {:ev     :recv
-                                                  :origin "transport/recv"
-                                                  :hdlc   (debug/debug frame)
-                                                  :raw    (get-in data [:proto/tm :data])})
-
-
-                  (async/put! pipeline frame)
-
-                  (cond
-                    (= FrameType/INFORMATION (.frameType frame))
-                      (do
-                        (println "info frame:" (HexConverter/toHexString (.informationField frame)))
-                        (.dataReceived listener
-                                       (byte-array (drop 3 (.informationField frame))))))
-                    (println "pushed event"))
+                (let [buf (.decode (Base64/getDecoder) b64buf)]
+                  (if (= 120 (alength buf))
+                    (buffer buf state)
+                    (let [received (byte-array (concat (@state :buffer) buf))]
+                      ; clear receive buffer, and ship the data
+                      (swap! state assoc :buffer (byte-array []))
+                      (handle (keyword path)
+                            received
+                            pipeline
+                            listener
+                            state))))
 
                 (pubsub/publish (keyword path) (merge {:ev :meta :origin "transport/cloud"} data))
                 ;(.dataReceived listener buf) )
@@ -89,7 +104,6 @@
 (defn -transport-factory
   [ref subscriber] ; ref :: keyword, pipeline :: pubsub/subscribe
   (let [state (atom (hdlc/init ref))
-        reset-state (fn [newstate] (reset! state newstate))
         path (subs (str ref) 1)
         pipeline (async/chan)
         options @cliopts]
@@ -97,14 +111,14 @@
     (reify ICloudTransportLayerConnection
       (startListening [this listener]
         (println "transport/open[" path "]")
-        (go (open-transport path options pipeline listener @state reset-state))
+        (go (open-transport path options pipeline listener state))
 
         ;; wait for cloud to initiate connection
         (let [[:continue resp] (async/<!! pipeline)]
           ; first update state to avoid deadlock where connect fails
-          (reset-state (assoc @state :resp resp))
+          (swap! state assoc :resp resp)
 
-          (let [ [resp newstate] (hdlc/connect this @state reset-state)]
+          (let [ [resp newstate] (hdlc/connect this @state)]
             (case resp
               :ack (reset! state newstate)
               :disconnect (throw (EOFException. "remote sent disconnect"))
@@ -131,15 +145,14 @@
         (let [[frame newstate] (hdlc/build-info @state (byte-array (concat llc-req buf)))
               encoded (hdlc/encode frame)]
 
-          (reset-state (hdlc/inc-send-seq @state))
+          (reset! state newstate)
 
           (pubsub/publish (keyword path) {:ev     :hdlc
                                           :origin "transport/send"
                                           :hdlc   (debug/debug frame)
                                           :raw    encoded})
 
-          (.sendraw this encoded)
-          (reset-state (hdlc/inc-send-seq @state))))
+          (.sendraw this encoded)))
 
 
       (poll [this]
@@ -148,6 +161,7 @@
 
       (close [this]
         (async/close! pipeline)
-        (hdlc/disconnect this @state reset-state)
-        (http/cancel (get @state :resp))
+        (let [newstate (hdlc/disconnect this @state)]
+          (reset! state newstate)
+          (http/cancel (@state :resp)))
         nil))))

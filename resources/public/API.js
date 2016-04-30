@@ -155,8 +155,8 @@ export const ConnActions = {
       ConnActions.sendAction(ref, 'get-attributes')
    },
 
-   getSerialNumber: function(ref) {
-      ConnActions.sendAction(ref, 'get-serial-number')
+   getInfo: function(ref) {
+      ConnActions.sendAction(ref, 'get-info')
    },
 
    getEventLog: function(ref) {
