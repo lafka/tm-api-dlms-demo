@@ -65,17 +65,19 @@
 ; 0.0.96.1.1.255 - manfucatorer name
 ; 1.0.0.2.0.255  - firmware revision
 ; 0.0.94.91.9.255- meter-type
-; 1/0.0.96.1.0.255/1"
+; 8/0.0.1.0.0.255/2-datetime
 (defn handle-get-info [ref subscriber]
   (try
     (let [conn (connection/get ref)
           sn (new AttributeAddress 1 (new ObisCode "0.0.96.1.0.255") 2)
           mf (new AttributeAddress 1 (new ObisCode "0.0.96.1.1.255") 2)
           fw (new AttributeAddress 1 (new ObisCode "1.0.0.2.0.255") 2)
+          dt (new AttributeAddress 8 (new ObisCode "0.0.1.0.0.255") 2)
           results-sn (.get (.get conn (into-array AttributeAddress [sn])) 0)
           results-mf (.get (.get conn (into-array AttributeAddress [mf])) 0)
-          results-fw (.get (.get conn (into-array AttributeAddress [fw])) 0)]
-      
+          results-fw (.get (.get conn (into-array AttributeAddress [fw])) 0)
+          results-dt (.get (.get conn (into-array AttributeAddress [dt])) 0)]
+
       (pubsub/publish ref {:ev     :results
                            :origin "client"
                            :call   "get-info"
@@ -83,6 +85,7 @@
                                        :serial-number (new String (.value (.resultData results-sn)))
                                        :firmware      (new String (.value (.resultData results-fw)))
                                        :manufactorer  (new String (.value (.resultData results-mf)))
+                                       :datetime      (debug/dt-to-str results-dt)
                                        }}))
     (catch TimeoutException e (publish-error ref (str "electricity_id - timeout: " (.getMessage e))))))
 
