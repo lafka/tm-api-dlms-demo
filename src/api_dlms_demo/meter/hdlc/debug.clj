@@ -1,5 +1,5 @@
 (ns api-dlms-demo.meter.hdlc.debug
-  (:import (org.openmuc.jdlms.internal.transportlayer.hdlc FrameType HdlcFrame)
+  (:import (org.openmuc.jdlms.internal.transportlayer.hdlc FrameType HdlcFrame FrameRejectReason)
            (java.util Base64)))
 
 (defn src-addr [frame] (.toString (.sourceAddress frame)))
@@ -25,6 +25,29 @@
 (defn recv-seq [frame] (.receiveSequence frame))
 (defn segmented [frame] (.segmented frame))
 
+(defn negotiation [frame]
+  (let [negotiation (.negotiation frame)]
+    {
+     :transmit-window-size (.transmitWindowSize negotiation)
+     :transmit-information-length (.transmitInformationLength negotiation)
+     :receive-window-size (.receiveWindowSize negotiation)
+     :receive-information-length (.receiveInformationLength negotiation)
+     }))
+
+(defn frame-reject [frame]
+  (let [info (information-field frame)
+        rejection (.rejectReasons (FrameRejectReason/decode info))]
+    (map #(.name %) rejection)
+    ))
+
+(defn additional [frame]
+  (case (frame-type frame)
+    :unnumbered-acknowledge (negotiation frame)
+    :set-normal-responsemode  (negotiation frame)
+    :frame-reject (frame-reject frame)
+    {}
+    )
+  )
 
 (defn debug [frame]
   {
@@ -37,4 +60,5 @@
    :send-seq          (send-seq frame)
    :recv-seq          (recv-seq frame)
    :segmented         (segmented frame)
+   :additional        (additional frame)
    })

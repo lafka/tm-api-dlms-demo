@@ -101,6 +101,7 @@ export default class Device extends React.Component {
          + ', send-seq: '  + frame['send-seq']
          + ', recv-seq: '  + frame['recv-seq']
          + ', segmented: ' + frame['segmented']
+         + ', additional: '+ _.map(frame['additional'], (v, k) => (k + ": " + v)).join(', ')
          + ', info: '      + (frame['information-field'] ? b64tohex(frame['information-field']) : '(none)')
     } else if (origin === 'client' && ev === 'connected') {
       return origin + "[" + ev + "]";
