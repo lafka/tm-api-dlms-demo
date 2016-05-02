@@ -82,13 +82,17 @@
                   (if (= 120 (alength buf))
                     (buffer buf state)
                     (let [received (byte-array (concat (@state :buffer) buf))]
-                      ; clear receive buffer, and ship the data
-                      (swap! state assoc :buffer (byte-array []))
-                      (handle (keyword path)
-                            received
-                            pipeline
-                            listener
-                            state))))
+                      (println "received[" (alength received) "]:" (str "\n" (HexConverter/toHexString received)))
+                      (if (= (seq (byte-array [0xff])) (seq received))
+                        nil ; some random 0xff appears every now and then
+                        (do
+                          ; clear receive buffer, and ship the data
+                          (swap! state assoc :buffer (byte-array []))
+                          (handle (keyword path)
+                                received
+                                pipeline
+                                listener
+                                state))))))
 
                 (pubsub/publish (keyword path) (merge {:ev :meta :origin "transport/cloud"} data))
                 ;(.dataReceived listener buf) )
