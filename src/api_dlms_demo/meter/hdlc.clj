@@ -4,20 +4,35 @@
             [clojure.core.async :as async])
   (:import (org.openmuc.jdlms.internal.transportlayer.hdlc HdlcFrame HdlcAddressPair HdlcAddress FrameType HdlcParameterNegotiation)
            (java.io ByteArrayInputStream)
-           (java.util Arrays Base64)))
+           (java.util Arrays Base64)
+           (api_dlms_demo.meter ParameterNegotiation)))
 
 
 
 (defn init [ref]
-  {:ref         ref
-   :recvseq     0
-   :sendseq     -1
-   :src         (new HdlcAddress 32)   ;; is this wrong?
-   :dest        (new HdlcAddress 1) ;; is this right?
-   :negotiation (new HdlcParameterNegotiation HdlcParameterNegotiation/MIN_INFORMATION_LENGTH HdlcParameterNegotiation/MIN_WINDOW_SIZE)
-   :queue       (async/chan)
-   :buffer      (byte-array [])  ; input buffer used block responses from tinymesh
-   } )
+  (let [
+        recv-info-size 129
+        send-info-size 129
+        send-window-size 1
+        recv-window-size 1
+        negotiation (new ParameterNegotiation recv-info-size recv-window-size send-info-size send-window-size)]
+        ;negotiation (new HdlcParameterNegotiation 128 1)]
+    {:ref         ref
+     :recvseq     0
+     :sendseq     -1
+     :src         (new HdlcAddress 32)   ;; is this wrong?
+     :dest        (new HdlcAddress 1) ;; is this right?
+     :negotiation negotiation
+     :queue       (async/chan)
+     :buffer      (byte-array [])  ; input buffer used block responses from tinymesh
+     } ))
+
+
+; working:  7e a0 07 03 41 93 5a 64 7e
+; n-workng: 7e a0 10 03 41 93 da f0 81 80 04   06 02 01 00       67 67 7e
+; n-wrkng2: 7e a0 0f 03 41 93 82 81 81 80 03   06 01 ff          1b ed 7e
+
+
 
 (defn inc-recv-seq [state]
   (assoc state :recvseq (mod (+ (state :recvseq) 1) 8)))
