@@ -60,6 +60,190 @@
       nil (publish-not-connected ref)
       (.disconnect conn))))
 
+(defn read-obis [conn class obis attr]
+  (print "reading obis: " class "/" obis "/" attr "\t->\t")
+  (let [res (.resultData (.get (.get conn (into-array AttributeAddress [(new AttributeAddress class  (new ObisCode obis) attr)   ])) 0))]
+    (if (not= nil res)
+      (.toString (.value res))
+      nil))
+  )
+
+(defn read-obis2 [conn class obis attr fmt]
+  (print "reading obis: " class "/" obis "/" attr "\t->\t")
+  (let [res (.resultData (.get (.get conn (into-array AttributeAddress [(new AttributeAddress class  (new ObisCode obis) attr)   ])) 0))]
+    (if (not= nil res)
+      (fmt res)
+      nil))
+  )
+
+(defn handle-read [ref subscriber]
+  (try
+    (let [conn (connection/get ref)
+      logical-device-name          (read-obis conn 1  "0.0.42.0.0.255"    2)
+      meter-serial-number          (read-obis2 conn 1  "0.0.96.1.0.255"   2 (fn [res] (new String (.value res))))
+      manufacturers-name           (read-obis2 conn 1  "0.0.96.1.1.255"   2 (fn [res] (new String (.value res))))
+      firmware-version             (read-obis2 conn 1  "1.0.0.2.0.255"    2 (fn [res] (new String (.value res))))
+      meter-type                   (read-obis conn 1  "0.0.94.91.9.255"   2)
+      category                     (read-obis2 conn 1  "0.0.94.91.11.255" 2 (fn [res] (new String (.value res))))
+      current-rating               (read-obis conn 1  "0.0.94.91.12.255"  2)
+      manufactur-year              (read-obis conn 1  "0.0.96.1.4.255"    2)
+      demand-integration-period    (read-obis conn 1  "1.0.0.8.0.255"     2)
+      block-load-integration-period(read-obis conn 1  "1.0.0.8.4.255"     2)
+      daily-load-capture-period    (read-obis conn 1  "1.0.0.8.5.255"     2)
+      cumulative-tamper-count      (read-obis conn 1  "0.0.94.91.0.255"   2)
+      cumulative-billing-count     (read-obis conn 1  "0.0.0.1.0.255"     2)
+      programming-count            (read-obis conn 1  "0.0.96.2.0.255"    2)
+      event0-code-object           (read-obis conn 1  "0.0.96.11.0.255"   2)
+      event1-code-object           (read-obis conn 1  "0.0.96.11.1.255"   2)
+      event2-code-object           (read-obis conn 1  "0.0.96.11.2.255"   2)
+      event3-code-object           (read-obis conn 1  "0.0.96.11.3.255"   2)
+      event4-code-object           (read-obis conn 1  "0.0.96.11.4.255"   2)
+      available-billing-cycles     (read-obis conn 1  "0.0.0.1.1.255"     2)
+      over-current-for-cut-off     (read-obis conn 1  "0.128.128.0.0.255" 2)
+      over-load-for-cut-off        (read-obis conn 1  "0.128.128.0.1.255" 2)
+      connection-period-interval   (read-obis conn 1  "0.128.128.0.2.255" 2)
+      connection-lockout-time      (read-obis conn 1  "0.128.128.0.3.255" 2)
+      connection-time-repeat       (read-obis conn 1  "0.128.128.0.4.255" 2)
+      tamper-occurance-time        (read-obis conn 1  "0.128.128.0.5.255" 2)
+      tamper-restoration-time      (read-obis conn 1  "0.128.128.0.6.255" 2)
+
+      ;voltage                      (read-obis conn 3  "1.0.12.7.0.255"    2) ; blocks
+      ;phase-current                (read-obis conn 3  "1.0.11.7.0.255"    2) ; float??
+      ;neutral-current              (read-obis conn 3  "1.0.91.7.0.255"    2) ; float??
+
+      ;signed-power-factor          (read-obis conn 3  "1.0.13.7.0.255"    2) ; blocks
+      ;frequency                    (read-obis conn 3  "1.0.14.7.0.255"    2) ; blocks
+      ;apparent-power               (read-obis conn 3  "1.0.9.7.0.255"     2) ; float
+      ;active-power                 (read-obis conn 3  "1.0.1.7.0.255"     2) ; float
+
+      ;cumulative-active-energy     (read-obis conn 3  "1.0.1.8.0.255"     2) ; blocks
+      ;cumulative-apparent-energy   (read-obis conn 3  "1.0.9.8.0.255"     2) ; blocks
+      ;cumulative-power-on          (read-obis conn 3  "0.0.94.91.14.255"  2) ; blocks
+      ;average-voltage              (read-obis conn 3  "1.0.12.27.0.255"   2) ; blocks
+      ;block-kwh                    (read-obis conn 3  "1.0.1.29.0.255"    2) ; float
+      ;bloack-kvah                  (read-obis conn 3  "1.0.9.29.0.255"    2) ; float
+      billing-date                 (read-obis conn 3  "0.0.0.1.2.255"     2)
+      ;bp-average-power-factor      (read-obis conn 3  "1.0.13.0.0.255"    2) ; float
+      ;tz1-kwh                      (read-obis conn 3  "1.0.1.8.1.255"     2) ; bytebuffer
+      ;tz2-kwh                      (read-obis conn 3  "1.0.1.8.2.255"     2) ; blocks
+      ;tz3-kwh                      (read-obis conn 3  "1.0.1.8.3.255"     2) ; float
+      ;tz4-kwh                      (read-obis conn 3  "1.0.1.8.4.255"     2) ; float
+      ;tz1-kvah                     (read-obis conn 3  "1.0.9.8.1.255"     2) ; float
+      ;tz2-kvah                     (read-obis conn 3  "1.0.9.8.2.255"     2) ; blocks
+      ;tz3-kvah                     (read-obis conn 3  "1.0.9.8.3.255"     2) ; float
+      ;tz4-kvah                     (read-obis conn 3  "1.0.9.8.4.255"     2) ; bytebuffer
+      ;active-current               (read-obis conn 3  "1.0.94.91.14.255"  2) ; bytebufer
+      ;total-power-on-time          (read-obis conn 3  "0.0.94.91.13.255"  2) ; blocks
+      kw-md-with-date-and-time     (read-obis conn 4  "1.0.1.6.0.255"     2)
+      kva-md-with-date-and-time    (read-obis conn 4  "1.0.9.6.0.255"     2)
+      ;instantaneous-profile        (read-obis conn 7  "1.0.94.91.0.255"   2) ; fragmentation
+      instantaneous-scaler-profile (read-obis conn 7  "1.0.94.91.3.255"   2)
+      ;block-load-profile           (read-obis conn 7  "1.0.99.1.0.255"    2) ; fragmentation
+      block-load-scaler-profile    (read-obis conn 7  "1.0.94.91.4.255"   2)
+      ;daily-load-profile           (read-obis conn 7  "1.0.99.2.0.255"    2) ; fragmentation
+      daily-load-scaler-profile    (read-obis conn 7  "1.0.94.91.5.255"   2)
+      ;billing-profile              (read-obis conn 7  "1.0.98.1.0.255"    2) ; fragmentation
+      billing-scaler-profile       (read-obis conn 7  "1.0.94.91.6.255"   2)
+      event0-scaler-profile        (read-obis conn 7  "1.0.94.91.7.255"   2)
+      ;event0-profile               (read-obis conn 7  "0.0.99.98.0.255"   2) ; fragmentation
+      ;event1-profile               (read-obis conn 7  "0.0.99.98.1.255"   2) ; fragmentation
+      event2-profile               (read-obis conn 7  "0.0.99.98.2.255"   2)
+      ;event3-profile               (read-obis conn 7  "0.0.99.98.3.255"   2) ; fragmentation
+      ;event4-profile               (read-obis conn 7  "0.0.99.98.4.255"   2) ; bytebuffer
+      name-plate-detail            (read-obis conn 7  "0.0.94.91.10.255"  2)
+      real-time-clock              (read-obis2 conn 8  "0.0.1.0.0.255"    2 debug/dt-to-str2)
+      ;association0                 (read-obis conn 15 "0.0.40.0.1.255"    2) ; bytebuffer
+      ;association1                 (read-obis conn 15 "0.0.40.0.2.255"    2) ; fragmentation
+      association2                 (read-obis conn 15 "0.0.40.0.3.255"    2)
+      activity-calender            (read-obis conn 20 "0.0.13.0.0.255"    2)
+      single-action-schedule       (read-obis conn 22 "0.0.15.0.0.255"    2)
+      disconnect-control           (read-obis conn 70 "0.0.96.3.10.255"   2)
+
+
+ ]
+
+
+        (pubsub/publish ref {:ev     :results
+                             :origin "client"
+                             :call   "get-data"
+                             :get-data {
+                                        :logical-device-name                logical-device-name
+                                        :meter-serial-number                meter-serial-number
+                                        :manufacturers-name                 manufacturers-name
+                                        :firmware-version                   firmware-version
+                                        :meter-type                         meter-type
+                                        :category                           category
+                                        :current-rating                     current-rating
+                                        :manufactur-year                    manufactur-year
+                                        :demand-integration-period          demand-integration-period
+                                        :block-load-integration-period      block-load-integration-period
+                                        :daily-load-capture-period          daily-load-capture-period
+                                        :cumulative-tamper-count            cumulative-tamper-count
+                                        :cumulative-billing-count           cumulative-billing-count
+                                        :programming-count                  programming-count
+                                        :event0-code-object                 event0-code-object
+                                        :event1-code-object                 event1-code-object
+                                        :event2-code-object                 event2-code-object
+                                        :event3-code-object                 event3-code-object
+                                        :event4-code-object                 event4-code-object
+                                        :available-billing-cycles           available-billing-cycles
+                                        :over-current-for-cut-off           over-current-for-cut-off
+                                        :over-load-for-cut-off              over-load-for-cut-off
+                                        :connection-period-interval         connection-period-interval
+                                        :connection-lockout-time            connection-lockout-time
+                                        :connection-time-repeat             connection-time-repeat
+                                        :tamper-occurance-time              tamper-occurance-time
+                                        :tamper-restoration-time            tamper-restoration-time
+                                        :voltage                            :error
+                                        :phase-current                      :error
+                                        :neutral-current                    :error
+                                        :signed-power-factor                :error
+                                        :frequency                          :error
+                                        :apparent-power                     :error
+                                        :active-power                       :error
+                                        :cumulative-active-energy           :error
+                                        :cumulative-apparent-energy         :error
+                                        :cumulative-power-on                :error
+                                        :average-voltage                    :error
+                                        :block-kwh                          :error
+                                        :bloack-kvah                        :error
+                                        :billing-date                       billing-date
+                                        :bp-average-power-factor            :error
+                                        :tz1-kwh                            :error
+                                        :tz2-kwh                            :error
+                                        :tz3-kwh                            :error
+                                        :tz4-kwh                            :error
+                                        :tz1-kvah                           :error
+                                        :tz2-kvah                           :error
+                                        :tz3-kvah                           :error
+                                        :tz4-kvah                           :error
+                                        :active-current                     :error
+                                        :total-power-on-time                :error
+                                        :kw-md-with-date-and-time           kw-md-with-date-and-time
+                                        :kva-md-with-date-and-time          kva-md-with-date-and-time
+                                        :instantaneous-profile              :error
+                                        :instantaneous-scaler-profile       instantaneous-scaler-profile
+                                        :block-load-profile                 :error
+                                        :block-load-scaler-profile          block-load-scaler-profile
+                                        :daily-load-profile                 :error
+                                        :daily-load-scaler-profile          daily-load-scaler-profile
+                                        :billing-profile                    :error
+                                        :billing-scaler-profile             billing-scaler-profile
+                                        :event0-scaler-profile              event0-scaler-profile
+                                        :event0-profile                     :error
+                                        :event1-profile                     :error
+                                        :event2-profile                     event2-profile
+                                        :event3-profile                     :error
+                                        :event4-profile                     :error
+                                        :name-plate-detail                  name-plate-detail
+                                        :real-time-clock                    real-time-clock
+                                        :association0                       :error
+                                        :association1                       :error
+                                        :association2                       association2
+                                        :activity-calender                  activity-calender
+                                        :single-action-schedule             single-action-schedule
+                                        :disconnect-control                 disconnect-control
+                                        }}))
 
 ; 0.0.96.1.0.255 - meter serial number
 ; 0.0.96.1.1.255 - manfucatorer name
@@ -73,6 +257,7 @@
           mf (new AttributeAddress 1 (new ObisCode "0.0.96.1.1.255") 2)
           fw (new AttributeAddress 1 (new ObisCode "1.0.0.2.0.255") 2)
           dt (new AttributeAddress 8 (new ObisCode "0.0.1.0.0.255") 2)
+          ;results (.get conn (into-array AttributeAddress [sn mf fw dt]))
           results-sn (.get (.get conn (into-array AttributeAddress [sn])) 0)
           results-mf (.get (.get conn (into-array AttributeAddress [mf])) 0)
           results-fw (.get (.get conn (into-array AttributeAddress [fw])) 0)
@@ -234,6 +419,7 @@
                   "connect"            (handle-connect ref subscriber)
                   "disconnect"         (handle-disconnect ref subscriber)
                   "get-info"           (handle-get-info ref subscriber)
+                  "get-data"           (handle-read ref subscriber)
                   "get-attributes"     (handle-get-attributes ref subscriber)
                   "get-eventlog"       (handle-get-eventlog ref subscriber)
                   (send! websocket (json/write-str {:error "invalid-command"}))))

@@ -14,9 +14,9 @@
        0                                  ;; challengeLength
        0                                  ;; deviceId
        10000                              ;; responseTimeout
-       0                                  ;; messageFragmentTimeout
+       50000                              ;; messageFragmentTimeout
        ""                                 ;; manufactureId
-       DataTransmissionLevel/UNENCRYPTED  ;; dataTransmissionLevel
+       DataTransmissionLevel/UNENCRYPTED ;; dataTransmissionLevel
        0                                  ;; clientAccessPoint
        0                                  ;; logicalDeviceAddress
        ))

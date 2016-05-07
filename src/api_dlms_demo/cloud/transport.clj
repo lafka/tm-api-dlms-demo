@@ -74,6 +74,8 @@
         (cond
           (string/blank? s) (println "transport/event: keep-alive")
 
+          (= s (byte-array [0xff])) (println "transport/event: 0xff")
+
           s (let [data (json/read-str s :key-fn #(keyword %))
                   b64buf (get-in data [:proto/tm :data])]
 
@@ -82,7 +84,7 @@
                   (if (= 120 (alength buf))
                     (buffer buf state)
                     (let [received (byte-array (concat (@state :buffer) buf))]
-                      (println "received[" (alength received) "]:" (str "\n" (HexConverter/toHexString received)))
+
                       (if (= (seq (byte-array [0xff])) (seq received))
                         nil ; some random 0xff appears every now and then
                         (do
@@ -141,7 +143,7 @@
         (let [buf (.encodeToString (Base64/getEncoder) buf)
               body (json/write-str {"proto/tm" {:type :command :command :serial :data buf}})]
 
-        (http-post (str "/message/" path) body options)
+        (http-post (str "/message/" path "?ack=false") body options)
         nil))
 
 
