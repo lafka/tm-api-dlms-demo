@@ -29,6 +29,12 @@ public class CloudConnectionBuilder extends ConnectionBuilder<CloudConnectionBui
         return conn;
     }
 
+    public LnClientConnection2 buildLnConnection2() throws IOException {
+        LnClientConnection2 conn = new LnClientConnection2(this.settings, this.transport);
+
+        return conn;
+    }
+
     public static void connect(ClientConnection conn) throws IOException {
         conn.connect();
     }

@@ -21,7 +21,7 @@ export default class Device extends React.Component {
       this.reqConnect = this.reqConnect.bind(this)
       this.reqAttrs = this.reqAttrs.bind(this)
       this.reqInfo = this.reqInfo.bind(this)
-      this.reqEventLog = this.reqEventLog.bind(this)
+      this.reqData = this.reqData.bind(this)
       this.reqDisconnect = this.reqDisconnect.bind(this)
   }
 
@@ -72,11 +72,11 @@ export default class Device extends React.Component {
     ConnActions.getInfo(nid + "/" + device)
   }
 
-  reqEventLog(ev) {
+  reqData(ev) {
     ev.preventDefault()
     let {nid, device} = this.props.params
 
-    ConnActions.getEventLog(nid + "/" + device)
+    ConnActions.getData(nid + "/" + device)
   }
 
   format(line) {
@@ -141,6 +141,9 @@ export default class Device extends React.Component {
     } else if (rest['get-info']) {
       return 'get-info:\n'
          + '\t' + _.map(rest['get-info'], (v, k) => k + ":\t" + v).join('\n\t')
+    } else if (rest['get-data']) {
+      return 'get-data:\n'
+         + '\t' + _.map(rest['get-data'], (v, k) => k + ":\t" + v).join('\n\t')
     }
 
     return origin + "[" + ev + "] -> " + JSON.stringify(rest)
@@ -170,7 +173,7 @@ export default class Device extends React.Component {
                   <ListGroupItem onClick={this.reqConnect}>Connect Meter</ListGroupItem>
                   <ListGroupItem onClick={this.reqAttrs}>Get attributes</ListGroupItem>
                   <ListGroupItem onClick={this.reqInfo}>Get device info</ListGroupItem>
-                  <ListGroupItem onClick={this.reqEventLog}>Get event log</ListGroupItem>
+                  <ListGroupItem onClick={this.reqData}>Get Data</ListGroupItem>
                   <ListGroupItem onClick={this.reqDisconnect}>Disconnect Meter</ListGroupItem>
                </ListGroup>
             </Col>

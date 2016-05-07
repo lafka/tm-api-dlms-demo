@@ -11,8 +11,8 @@
 
 (defn init [ref]
   (let [
-        recv-info-size 129
-        send-info-size 129
+        recv-info-size 100
+        send-info-size 100
         send-window-size 1
         recv-window-size 1
         negotiation (new ParameterNegotiation recv-info-size recv-window-size send-info-size send-window-size)]
