@@ -19,6 +19,33 @@
         display: block;
         background: #eee;
       }
+
+      .list-group > a.disabled {
+        color: #999999;
+      }
+      .list-group > a.disabled:hover,
+      .list-group > a.disabled:focus {
+        color: #999999;
+        text-decoration: none;
+        background-color: transparent;
+        cursor: not-allowed;
+      }
+
+      .attr-list td {
+        white-space: pre;
+      }
+
+      .attr-list tr.loading {
+        background: #eaeaea;
+        color: #999;
+      }
+
+      .attr-list tr.loading.reading {
+        color: #8a6d3b;
+        background-color: #fcf8e3;
+        border-color: #faebcc;
+      }
+
     </style>
   </head>
   <body>

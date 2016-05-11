@@ -11,7 +11,8 @@
             [http.async.client :as http]
             [api-dlms-demo.store.network :as networks]
             [api-dlms-demo.store.device :as devices]
-            [api-dlms-demo.connection :as connection]))
+            [api-dlms-demo.connection :as connection]
+            [ring.util.response :as response]))
 
 (def options {:remote "http://http.stage.highlands.tiny-mesh.com/v2"
                :user "dev@nyx.co"
@@ -81,16 +82,19 @@
   (GET  "/api/network/:nid" [nid] (get-network nid))
   (POST "/api/network/:nid" [nid] (post-network nid))
   (GET "/api/connection/:nid/:device" [] connection/handler)
+  (GET "/favicon.ico"  [] {:status (or status 404)
+                           :headers {"Content-Type" "text/plain"}
+                           :body ""})
   (route/resources "/")
   (rfn request
-    (-> (file-response "index.html" {:root "resources/public"})
-        (content-type "text/html")
-        (status 200)))
+     (-> (resource-response "index.html" {:root "public"})
+         (content-type "text/html")
+         (status 200)))
   (route/not-found "nope"))
 
 
-(defn start []
+(defn start [port]
   (-> (site #'app-routes)
       (logger/wrap-with-logger)
       (reload/wrap-reload)
-      (run-server {:port 3000})))
+      (run-server {:port port})))

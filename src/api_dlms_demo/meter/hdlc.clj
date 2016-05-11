@@ -4,19 +4,20 @@
             [clojure.core.async :as async])
   (:import (org.openmuc.jdlms.internal.transportlayer.hdlc HdlcFrame HdlcAddressPair HdlcAddress FrameType HdlcParameterNegotiation)
            (java.io ByteArrayInputStream)
-           (java.util Arrays Base64)
-           (api_dlms_demo.meter ParameterNegotiation)))
+           (api_dlms_demo.meter ParameterNegotiation)
+           (java.util Arrays)))
 
 
 
 (defn init [ref]
   (let [
-        recv-info-size 100
-        send-info-size 100
+        recv-info-size 128
+        send-info-size 128
         send-window-size 1
         recv-window-size 1
         negotiation (new ParameterNegotiation recv-info-size recv-window-size send-info-size send-window-size)]
         ;negotiation (new HdlcParameterNegotiation 128 1)]
+
     {:ref         ref
      :recvseq     0
      :sendseq     -1

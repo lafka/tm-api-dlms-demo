@@ -1,7 +1,9 @@
 (ns api-dlms-demo.cli
   (:require [clojure.tools.cli :refer [parse-opts]]
             [clojure.string :as string]
-            [api-dlms-demo.handler :as server]))
+            [api-dlms-demo.handler :as server]
+            [api-dlms-demo.persistance.worker :as worker])
+  (:gen-class))
 
 (def cli-options
   [["-r" "--remote" "API endpoint"
@@ -22,6 +24,12 @@
     :default 0
     ;; Use assoc-fn to create non-idempotent options
     :assoc-fn (fn [m k _] (update-in m [k] inc))]
+
+   ["-P" "--port" "local listening port"
+    :id :port
+    :required "PORT"
+    :default "3001"]
+
    ["-h" "--help"]])
 
 (defn usage [options-summary]
@@ -42,6 +50,10 @@
   (println msg)
   (System/exit status))
 
+
+
+
+
 (defn -main [& args]
   (let [{:keys [options arguments errors summary]} (clojure.tools.cli/parse-opts args cli-options)]
     (cond
@@ -51,9 +63,11 @@
     ;(org.apache.log4j.BasicConfigurator/configure)
 
     (reset! api-dlms-demo.cloud.transport/cliopts options)
-    (clojure.pprint/pprint @api-dlms-demo.cloud.transport/cliopts)
+
+
+    (worker/init)
 
     (onelog.core/info "starting server")
-    (server/start)
+    (server/start (read-string (options :port)))
     (onelog.core/info "server started")
     ))

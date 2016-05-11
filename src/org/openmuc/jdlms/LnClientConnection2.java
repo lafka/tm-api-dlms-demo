@@ -139,7 +139,12 @@ public class LnClientConnection2 extends ClientConnection {
                     throw new IOException(e);
                 }
             }
-            datablocks.write(response.get_response_with_datablock.result.result.raw_data.getValue());
+
+            // last block is not a datablock but rather data_access_result
+            if (null != response.get_response_with_datablock.result.result.raw_data) {
+                datablocks.write(response.get_response_with_datablock.result.result.raw_data.getValue());
+            }
+
             InputStream dataByteStream = new ByteArrayInputStream(datablocks.toByteArray());
             while (dataByteStream.available() > 0) {
                 org.openmuc.jdlms.internal.asn1.cosem.Data resultPduData = new org.openmuc.jdlms.internal.asn1.cosem.Data();
@@ -329,7 +334,7 @@ public class LnClientConnection2 extends ClientConnection {
         try {
             switch (pdu.getChoiceIndex()) {
                 case GET_RESPONSE:
-                    System.out.println("APDU/GET_RESPONSE: " + pdu.get_response.get_response_normal.result);
+                    System.out.println("APDU/GET_RESPONSE: " + pdu.get_response);
                     getResponseQueue.put(PduHelper.invokeIdFrom(pdu.get_response), pdu.get_response);
                     break;
                 case SET_RESPONSE:

@@ -81,12 +81,13 @@
               (if (= "serial" (get-in data [:proto/tm :detail]))
                 (let [buf (.decode (Base64/getDecoder) b64buf)]
 
-                  (println "pkt: [" (alength buf) "]")
+                  ;(println "pkt: [" (alength buf) "]")
 
                   (if (= 120 (alength buf))
                     (buffer buf state)
                     (let [received (byte-array (concat (@state :buffer) buf))]
                       (println "pkt-handle: [" (alength received) "] " (str (HexConverter/toHexString received)))
+
                       (if (= (seq (byte-array [0xff])) (seq received))
                         nil ; some random 0xff appears every now and then
                         (do
@@ -99,7 +100,6 @@
                                 state))))))
 
                 (pubsub/publish (keyword path) (merge {:ev :meta :origin "transport/cloud"} data))
-                ;(.dataReceived listener buf) )
                 ))))
 
       (println "transport/closed" path)
@@ -110,7 +110,7 @@
 (def llc-resp (byte-array [0xE6 0xE6 0x00 ]))
 
 (defn -transport-factory
-  [ref subscriber] ; ref :: keyword, pipeline :: pubsub/subscribe
+  [ref subscriber]
   (let [state (atom (hdlc/init ref))
         path (subs (str ref) 1)
         pipeline (async/chan)

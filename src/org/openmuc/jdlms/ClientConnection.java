@@ -77,6 +77,8 @@ public abstract class ClientConnection implements TransportLayerConnectionListen
 
     private int invokeId;
 
+    public byte[] lastData =  null;
+
     private final SecureRandom random;
 
     private IOException ioException;
@@ -347,7 +349,8 @@ public abstract class ClientConnection implements TransportLayerConnectionListen
 
     @Override
     public void dataReceived(byte[] data) {
-        System.out.println("ClientConnection got input data!");
+        lastData = data;
+
         APdu aPdu;
         try {
             aPdu = new APdu(new DataInputStream(new ByteArrayInputStream(data)), this.connectionSettings,

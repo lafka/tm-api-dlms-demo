@@ -1,6 +1,7 @@
 import request from 'superagent'
 import {EventEmitter} from 'events'
 import Flux from 'flux'
+import _ from 'lodash'
 
 import {Base64Binary} from './Base64.js'
 
@@ -127,11 +128,12 @@ export const ConnActions = {
                action: Constants['conn:close'],
                ref: ref,
             })
+
+            // naively try to reconnect
+            ConnActions.open(ref)
          }
 
          conn.onmessage = (msg) => {
-            console.log('ws[' + ref + '] MSG', msg.data)
-
             let data = JSON.parse(msg.data)
 
             Dispatcher.dispatch({
@@ -143,31 +145,13 @@ export const ConnActions = {
       })
    },
 
-   sendConnect: function(ref) {
-      ConnActions.sendAction(ref, 'connect')
-   },
-
-   sendDisconnect: function(ref) {
-      ConnActions.sendAction(ref, 'disconnect')
-   },
-
-   getAttrs: function(ref) {
-      ConnActions.sendAction(ref, 'get-attributes')
-   },
-
-   getInfo: function(ref) {
-      ConnActions.sendAction(ref, 'get-info')
-   },
-
-   getData: function(ref) {
-      ConnActions.sendAction(ref, 'get-data')
-   },
-
    sendAction: function(ref, action, data) {
       data = data || {}
 
-      if ('open' !== connstore.isOpen(ref))
+      if ('open' !== connstore.isOpen(ref)) {
+         console.log("trying to send on closed channel")
          return 'closed'
+      }
 
       let conn = connstore.conn(ref)
       conn.send(JSON.stringify(_.merge({ev: action, origin: 'webclient'}, data)))
@@ -177,6 +161,23 @@ export const ConnActions = {
          ref: ref,
          data: _.merge({ev: action, origin: 'webclient'}, data)
       })
+   },
+
+
+   readWorker: function(ref, attrs) {
+      ConnActions.sendAction(ref, 'read-worker', {attrs})
+   },
+
+   writeWorker: function(ref, attrs) {
+      ConnActions.sendAction(ref, 'write-worker', {attrs})
+   },
+
+   listAttrs: function(ref) {
+      ConnActions.sendAction(ref, 'list-attrs')
+   },
+
+   readObjectList: function(ref) {
+      ConnActions.sendAction(ref, 'object-list')
    }
 }
 
@@ -218,7 +219,7 @@ class ConnStore extends BaseStore {
 
             case Constants['conn:recv']:
             case Constants['conn:send']:
-               this._connections[ev.ref].data.push(ev.data)
+               //this._connections[ev.ref].data.push(ev.data)
 
                this.emitChange()
                break;
@@ -245,7 +246,6 @@ let connstore = new ConnStore()
 export {connstore as ConnStore}
 
 Dispatcher.register( (ev) => {
-   console.log('action: ' + ev.action)
 } )
 
 class NetworkStore extends BaseStore {
@@ -282,3 +282,92 @@ class NetworkStore extends BaseStore {
 
 let netstore = new NetworkStore()
 export {netstore as NetworkStore}
+
+class DataStore extends BaseStore {
+   constructor() {
+      super()
+
+      this._resources = {}
+      this._futures = {}
+      this._pointers= {}
+
+      this.dispatchToken = Dispatcher.register( (ev) => {
+         //Constants['data:read']
+         //Constants['data:read-worker']
+         let action = ev.action
+
+         switch (action) {
+            // response to a data:read command
+            case Constants['conn:recv']:
+               if (ev.data.ev === 'data:update') {
+                  this.updateAttr(ev.ref, ev.data.attr, ev.data.data)
+
+                  // remove from the work list
+                  if ((this._futures[ev.ref] || {})[ev.data.future])
+                     this._futures[ev.ref][ev.data.future] = _.without(this._futures[ev.ref][ev.data.future], ev.data.attr)
+
+               } else if (ev.data.ev === 'data:list') {
+                  this._resources[ev.ref] = _.reduce(ev.data.data, function(acc, v) {
+                     acc[v[0].slice(1).join('/')] = v[1]
+                     return acc
+                  }, {})
+
+                  this.emitChange()
+               } else if (ev.data.ev === 'data:read-worker') {
+                  if ("queue" === ev.data.action) {
+                     this._futures[ev.ref] = this._futures[ev.ref] || {}
+                     this._futures[ev.ref][ev.data.future] = ev.data.attrs
+                     this.emitChange()
+                  } else if ("done" === ev.data.action) {
+                     delete this._futures[ev.ref][ev.data.future]
+                     this.emitChange()
+                  }
+               } else if (ev.data.ev === 'data:read-init') {
+                  this._pointers[ev.ref] = this._pointers[ev.ref] || {}
+                  this._pointers[ev.ref][ev.data.future] = ev.data.attr
+                  this.emitChange()
+               }
+               // read responds with the requested data or nil
+//
+//            case Constants['data:read-worker']:
+//               // read-worker just responds with a notification that
+//               // there will be a response in the future. Action will
+//               // contain field 'future' with a unique reference to
+//               // the future response
+//
+//
+//            case Constants['data:update']:
+//               // triggered when there was a update to a resource.
+//               // The action will contain the fields `data`, `attr`
+//               // where `data` contains ALL known values for the field
+         }
+      })
+   }
+
+   updateAttr(ref, attr, data) {
+      if (!this._resources[ref])
+         this._resources[ref] = {}
+
+      this._resources[ref][attr] = data
+      this.emitChange()
+   }
+
+   pointers(ref) {
+      return this._pointers[ref]
+   }
+
+   futures(ref) {
+      return this._futures[ref] || {}
+   }
+
+   attrs(ref) {
+      return this._resources[ref]
+   }
+
+   attr(ref, attr, n) {
+      return (this._resources[ref] || {})[attr]
+   }
+}
+
+let datastore = new DataStore()
+export {datastore as DataStore}
