@@ -29,4 +29,7 @@
   :main api-dlms-demo.cli
   :profiles
   {:dev {:dependencies [[javax.servlet/servlet-api "2.5"]
-                        [ring/ring-mock "0.3.0"]]}})
+                        [ring/ring-mock "0.3.0"]]}}
+  :uberjar-exclusions [#"node_modules/"]
+  :jar-exclusions [#"node_modules/"]
+)
