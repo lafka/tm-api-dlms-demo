@@ -29,6 +29,7 @@ const fmtev = function(ev) {
       case 206: return 'Event (206): Low pf restoration';
       case 207: return 'Event (207): Neutral miss occurence';
       case 208: return 'Event (208): Neutral miss restoration';
+      case 251: return 'Event (251): Cover Open';
       case 301: return 'Event (301): Latch disconnection';
       case 302: return 'Event (302): Latch reconnection';
       default:
@@ -114,8 +115,8 @@ const fmt = {
       "20/0.0.13.0.0.255/2":     ['activity-calender',             null],
       "22/0.0.15.0.0.255/2":     ['single-action-schedule',        null],
       "70/0.0.96.3.10.255/2":    ['disconnect-control',            null, 'bool'],
-      "70/0.0.96.3.10.255/5":    ['disconnect-meter',              null, 'exec', '70/0.0.96.3.10.255/2'],
-      "70/0.0.96.3.10.255/6":    ['reconnect-meter',               null, 'exec', '70/0.0.96.3.10.255/2'],
+      "70/0.0.96.3.10.255@1":    ['disconnect-meter',              null, 'exec', null, '70/0.0.96.3.10.255/2'],
+      "70/0.0.96.3.10.255@2":    ['reconnect-meter',               null, 'exec', null, '70/0.0.96.3.10.255/2'],
 
 }
 
@@ -324,8 +325,8 @@ export default class Device extends React.Component {
       "1/0.128.128.0.5.255/2",
       "1/0.128.128.0.6.255/2",
       "1/0.128.128.0.7.255/2",
-      "70/0.0.96.3.10.255/5",
-      "70/0.0.96.3.10.255/6"
+      "70/0.0.96.3.10.255@1",
+      "70/0.0.96.3.10.255@2"
     ]
   }
 
@@ -359,9 +360,10 @@ export default class Device extends React.Component {
     let
       {nid, device} = this.props.params,
       ref = nid + "/" + device,
-      [iface, obis, attr] = code.split("/")
+      [head, method] = code.split("@"),
+      [iface, obis, attr] = head.split("/")
 
-    ConnActions.writeWorker(ref, [ [parseInt(iface), obis, parseInt(attr), (fmt[code] || [])[2], value] ] )
+    ConnActions.writeWorker(ref, [ [parseInt(iface), obis, parseInt(method || attr), (fmt[code] || [])[2], value] ] )
   }
 
 
@@ -450,7 +452,6 @@ export default class Device extends React.Component {
                <br />
 
                <Button onClick={() => this.saveCsv(ref)}>Save as CSV/Excel</Button>
-
             </Col>
             <Col xs={12} sm={10} style={{paddingTop: '38px'}}>
 
@@ -497,6 +498,8 @@ class ConnState extends React.Component {
       let
          {timer} = this.state,
          connState = this.connState(this.props.state)
+      if (_.isEqual(this.props.state, nextProps.state))
+         return
 
       if (!timer)
          this.setState({expired: false,
@@ -571,7 +574,22 @@ const rawOrDummy = function(ref, code) {
 
 class Value extends React.Component {
    render() {
-      let {type, value, onChange} = this.props
+      let
+         {type, value, onChange, code} = this.props,
+         ref = this.props.device
+
+      if (!value) {
+         value = DataStore.attr(ref, code)
+
+         if (_.isArray(value))
+            value = value[0]
+
+         if (_.isObject(value) && value.value)
+            value = value.value
+         else if (_.isObject(value) && value.error)
+            value = "Error: " + value.error
+      }
+
 
       switch (type) {
          case 'int':
@@ -609,7 +627,7 @@ class Value extends React.Component {
                    </FormControl>
 
          case 'exec':
-            return <span>-</span>
+            return <span>{value}</span>
       }
    }
 }
@@ -625,8 +643,6 @@ class ConfigureView extends React.Component {
       let
          {attrs, reading, loading, tab, readWorker, writeWorker} = this.props,
          ref = this.props.device
-
-      console.log(this.state)
 
       const unchanged = code => undefined === this.state[code] || this.state[code] == ((DataStore.attr(ref, code) || [])[0] || {}).value
 
@@ -647,25 +663,27 @@ class ConfigureView extends React.Component {
                      <tr key={k} className={(reading(code) ? 'reading ' : '') + (loading(code) ? 'loading' : '')}>
                         <td>{(fmt[code] || [])[0] || code}</td>
                         <td>{code}</td>
-                        <td>{fmtOrDummy(ref, (fmt[code] || [])[3] || code)}</td>
+                        <td>{fmtOrDummy(ref, (fmt[code] || [])[4] || code)}</td>
                         <td>
                            <Value
+                              device={ref}
                               type={(fmt[code] || [])[2]}
-                              value={this.state[code] || ((DataStore.attr(ref, code) || [])[0] || {}).value}
+                              code={code}
+                              value={this.state[code]}
                               onChange={ev => {let x = {}; x[code] = ev.target.value; this.setState(x)}}
                               />
                         </td>
                         <td>
                            <Button
-                              onClick={() => writeWorker(code, this.state[code])}
+                              onClick={() => writeWorker(code, (fmt[code] || [])[3] || this.state[code])}
                               bsStyle='primary'
                               disabled={(fmt[code] || [])[2] !== 'exec' && (loading(code) || unchanged(code))}>
                               {loading(code) ? 'Loading ...' : ((fmt[code] || [])[2] === 'exec' ? 'Execute' : 'Update Value')}
                            </Button>
                            &nbsp;
                            <Button
-                              onClick={() => readWorker((fmt[code] || [])[3] || code)}
-                              disabled={loading((fmt[code] || [])[3] || code)}>
+                              onClick={() => readWorker((fmt[code] || [])[4] || code)}
+                              disabled={loading((fmt[code] || [])[4] || code)}>
                               {loading(code) ? 'Loading ...' : 'Fetch data'}
                            </Button>
                         </td>

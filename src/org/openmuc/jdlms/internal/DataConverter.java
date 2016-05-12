@@ -57,7 +57,7 @@ import org.openmuc.jdlms.internal.asn1.cosem.Unsigned8;
 public final class DataConverter {
 
     public static DataObject toApi(Data pdu) {
-
+        System.out.println("DataObject PDU -> " + pdu);
         Choices choice = pdu.getChoiceIndex();
         ByteBuffer buf;
         List<DataObject> innerData;
@@ -250,6 +250,8 @@ public final class DataConverter {
                 buffer = ByteBuffer.allocate(4);
                 buffer.putFloat((float) value.doubleValue()); // some reason they want to but a double for a float...
                 buffer.flip();
+
+                System.out.println("encoded: " + value.floatValue() + "  " + HexConverter.toHexString(buffer.array()));
 
                 result.setfloat32(new AxdrOctetString(4, buffer.array()));
                 break;

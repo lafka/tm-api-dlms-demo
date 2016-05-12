@@ -5,11 +5,10 @@
             [api-dlms-demo.persistance.cache :as cache]
             [api-dlms-demo.pubsub :as pubsub]
             [clojure.string :as string])
-  (:import (org.openmuc.jdlms CloudConnectionBuilder AttributeAddress ObisCode ClientConnection AccessResultCode SetParameter MethodParameter)
+  (:import (org.openmuc.jdlms CloudConnectionBuilder AttributeAddress ObisCode SetParameter MethodParameter MethodResultCode)
            (java.util.concurrent TimeoutException)
            (java.util Base64 LinkedList)
            (java.nio ByteBuffer)
-           (org.openmuc.jdlms.interfaceclass.attribute AssociationLnAttribute)
            (org.openmuc.jdlms.datatypes DataObject)))
 
 
@@ -43,9 +42,9 @@
           attr (new AttributeAddress iface obis attr)
           res (.get (.get conn (into-array AttributeAddress [attr])) 0)]
 
-      (if (not= AccessResultCode/SUCCESS (.resultCode res))
-        (string/join "/" ["AccessResultCode" (.name (.resultCode res))])
-        (.value (.resultData res)))
+
+(clojure.pprint/pprint (.resultData res))
+(.value (.resultData res))
     ))
 
 (defn publish-update [update ref target [iface obis attr]]
@@ -54,6 +53,14 @@
                        :data   update
                        :future target
                        :where  "worker/read-codes"
+                       }))
+
+(defn publish-action-result [update ref target [iface obis attr]]
+  (pubsub/publish ref {:ev     "data:action"
+                       :attr   (string/join "/" [iface obis attr])
+                       :data   update
+                       :future target
+                       :where  "worker/write-codes"
                        }))
 
 (defn publish-read-init [ref target [iface obis attr]]
@@ -99,13 +106,16 @@
 
    ))
 
+(defn data-object [type value]
+  (case type
+    "bool" (DataObject/newBoolData (Boolean/parseBoolean value))
+    "bit" (DataObject/newInteger16Data (Short/parseShort value))
+    "int" (DataObject/newInteger16Data (Short/parseShort value))
+    "float" (DataObject/newFloat32Data (Float/parseFloat value))))
+
 (defn write-code [conn ref target iface obis attr type value]
   (println "write: " iface "/" obis "/" attr " :: " type ": " value)
-  (let [val (case type
-              "bool" (DataObject/newBoolData (Boolean/parseBoolean value))
-              "bit" (DataObject/newInteger16Data (Short/parseShort value))
-              "int" (DataObject/newInteger16Data (Short/parseShort value))
-              "float" (DataObject/newFloat32Data (Float/parseFloat value)))
+  (let [val (data-object type value)
         obisobj (new ObisCode obis)
         attrobj (new AttributeAddress iface obisobj attr)
         setter (new SetParameter attrobj val)]
@@ -124,39 +134,52 @@
     ))
 
 
-(defn exec-code [conn iface obis attr]
-  (println "exec: " iface "/" obis "/" attr)
-  (let [obis (new ObisCode obis)
-        setter (new MethodParameter iface obis attr)]
+(defn exec-code [conn ref target iface obis attr & [[type value]]]
+  (println "exec: " iface "/" obis "/" attr " -> " value "::" type)
+  (let [obisobj (new ObisCode obis)
+        action (new MethodParameter iface obisobj attr) ; no need for value
+        res (.get (.action conn (into-array MethodParameter [action])) 0)
+        return (if (not= MethodResultCode/SUCCESS (.resultCode res))
+          (string/join "/" ["MethodResultCode" (.name (.resultCode res))])
+          {:value (.name (.resultCode res))})]
 
-    (.action conn (into-array MethodParameter [setter]))))
+    (publish-action-result return ref target [iface obis attr])
 
-;res (.get (.get conn (into-array AttributeAddress [attr])) 0)]
+    ))
 
+(defn write-codes [conn ref [[iface obis attr type value] & rest] target]
+  (try
+    (publish-write-init ref target [iface obis attr value])
 
-;(defn read-code [conn iface obis attr]
-;  (let [obis (new ObisCode obis)
-;        attr (new AttributeAddress iface obis attr)
-;        res (.get (.get conn (into-array AttributeAddress [attr])) 0)]
-;
-;    (if (not= AccessResultCode/SUCCESS (.resultCode res))
-;      (string/join "/" ["AccessResultCode" (.name (.resultCode res))])
-;      (.value (.resultData res)))
-;    ))
+    (case type
+      "exec" (exec-code conn ref target iface obis attr value)
+      (write-code conn ref target iface obis attr type value)
+      )
 
-(defn write-codes [conn ref [ [iface obis attr type value] & rest] target]
-  (publish-write-init ref target [iface obis attr value])
+    ;(publish-purge ref target [iface obis attr])f
 
-  (case type
-    "exec" (exec-code conn iface obis attr)
-    (write-code conn ref target iface obis attr type value)
-    )
+    (if (not= rest nil)
+      (write-codes conn ref rest target)
+      true)
 
-  ;(publish-purge ref target [iface obis attr])f
+  (catch Exception e
+    (do
+      (println "error reading attr: " iface "/" obis "/" attr)
+      (clojure.stacktrace/print-stack-trace e)
 
-  (if (not= rest nil)
-    (write-codes conn ref rest target)
-    true) )
+      ;(cache/add (str (type e) (.getMessage e)) ref [iface obis attr])
+      ;(publish-update (str (type e) (.getMessage e)) ref target [iface obis attr])
+
+      (pubsub/publish ref {:ev     :error
+                           :attr   (string/join "/" [iface obis attr])
+                           :data   {:error (.getMessage e)}
+                           :where  "worker/write-codes"
+                           :future target
+                           })
+      (if (not= rest nil)
+        (write-codes conn ref rest target)
+        true)))
+  ))
 
 (defn read-codes  [conn ref [ [iface obis attr n-try] & rest] target]
   (let [n-try (or n-try 0)]
@@ -257,32 +280,3 @@
       (println "handler/loop work was done")
       (recur)
       )))
-;
-;(defn init []
-;  (async/go-loop []
-;    (let [[target ref attrs] (async/<!! @workers)]
-;      (try
-;        (let [conn (.buildLnConnection2 (builder ref))]
-;          (CloudConnectionBuilder/connect conn)
-;          (let [done? (read-codes conn ref attrs target)]
-;            (if done?
-;              (pubsub/publish ref {:ev     "data:read-worker"
-;                                   :action :done
-;                                   :where  "worker/read"
-;                                   :future target}))
-;
-;            (.disconnect conn true)
-;          ))
-;
-;        (catch Exception e
-;          (do
-;            (clojure.stacktrace/print-stack-trace e)
-;
-;            (pubsub/publish ref {:error {(type e) (.getMessage e)}
-;                                 :where "worker/read"
-;                                 :future target
-;                                 }))))
-;
-;      (println "handler/loop work was done")
-;      (recur)
-;      )))

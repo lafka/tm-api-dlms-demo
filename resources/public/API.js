@@ -307,9 +307,32 @@ class DataStore extends BaseStore {
                   this.updateAttr(ev.ref, ev.data.attr, ev.data.data)
 
                   // remove from the work list
-                  if ((this._futures[ev.ref] || {})[ev.data.future])
+                  if ((this._futures[ev.ref] || {})[ev.data.future]) {
                      this._futures[ev.ref][ev.data.future] = _.without(this._futures[ev.ref][ev.data.future], ev.data.attr)
+                  }
 
+                  this.emitChange()
+               } else if (ev.data.ev === 'data:action') {
+                  if ((this._futures[ev.ref] || {})[ev.data.future]) {
+                     this._futures[ev.ref][ev.data.future] = _.without(this._futures[ev.ref][ev.data.future], ev.data.attr)
+                  }
+
+                  console.log('action-ev', ev.data.attr, ev.data.data);
+                  this.updateAttr(ev.ref, ev.data.attr, ev.data.data)
+
+                  this.emitChange();
+               } else if (ev.data.ev === 'error') {
+                  if (!ev.data.future || !ev.data.attr)
+                     return
+
+                  if ((this._futures[ev.ref] || {})[ev.data.future]) {
+                     this._futures[ev.ref][ev.data.future] = _.without(this._futures[ev.ref][ev.data.future], ev.data.attr)
+                  }
+
+                  console.log('action-ev', ev.data.attr, ev.data.data);
+                  this.updateAttr(ev.ref, ev.data.attr, ev.data.data)
+
+                  this.emitChange();
                } else if (ev.data.ev === 'data:list') {
                   this._resources[ev.ref] = _.reduce(ev.data.data, function(acc, v) {
                      acc[v[0].slice(1).join('/')] = v[1]
@@ -368,7 +391,6 @@ class DataStore extends BaseStore {
          this._resources[ref] = {}
 
       this._resources[ref][attr] = data
-      this.emitChange()
    }
 
    pointers(ref) {

@@ -81,10 +81,15 @@
               (if (= "serial" (get-in data [:proto/tm :detail]))
                 (let [buf (.decode (Base64/getDecoder) b64buf)]
 
-                  ;(println "pkt: [" (alength buf) "]")
 
-                  (if (= 120 (alength buf))
-                    (buffer buf state)
+
+                  (println "recv: [" (alength buf) "]" (str (HexConverter/toHexString buf)))
+
+                  (if (not= 0x7e (last buf))
+                    (do
+                      (buffer buf state)
+                      (println "buffered....: [" (alength buf) "]")
+                      )
                     (let [received (byte-array (concat (@state :buffer) buf))]
                       (println "pkt-handle: [" (alength received) "] " (str (HexConverter/toHexString received)))
 

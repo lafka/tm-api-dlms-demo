@@ -357,6 +357,7 @@ public abstract class ClientConnection implements TransportLayerConnectionListen
                     data[0] & 0xff, encryptionSettings);
         } catch (IOException e) {
             System.out.println("Got IOException: " + e.getMessage());
+            e.printStackTrace();
             ioException = e;
             try {
                 incomingResponses.put(new APdu(null, null));
