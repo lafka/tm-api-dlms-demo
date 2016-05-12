@@ -5,7 +5,7 @@
             [api-dlms-demo.persistance.cache :as cache]
             [api-dlms-demo.pubsub :as pubsub]
             [clojure.string :as string])
-  (:import (org.openmuc.jdlms CloudConnectionBuilder AttributeAddress ObisCode ClientConnection AccessResultCode SetParameter)
+  (:import (org.openmuc.jdlms CloudConnectionBuilder AttributeAddress ObisCode ClientConnection AccessResultCode SetParameter MethodParameter)
            (java.util.concurrent TimeoutException)
            (java.util Base64 LinkedList)
            (java.nio ByteBuffer)
@@ -113,6 +113,15 @@
     (clojure.pprint/pprint attr)
     (clojure.pprint/pprint val)
     (clojure.pprint/pprint (.set conn (into-array SetParameter [setter]))    )))
+
+
+(defn exec-code [conn iface obis attr]
+  (println "exec: " iface "/" obis "/" attr)
+  (let [obis (new ObisCode obis)
+        setter (new MethodParameter iface obis attr)]
+
+    (.action conn (into-array MethodParameter [setter]))))
+
 ;res (.get (.get conn (into-array AttributeAddress [attr])) 0)]
 
 
@@ -129,7 +138,10 @@
 (defn write-codes [conn ref [ [iface obis attr type value] & rest] target]
   (publish-write-init ref target [iface obis attr value])
 
-  (write-code conn iface obis attr type value)
+  (case type
+    "exec" (exec-code conn iface obis attr)
+    (write-code conn iface obis attr type value)
+    )
   ;(publish-purge ref target [iface obis attr])f
 
   (if (not= rest nil) (write-codes conn ref rest target)) )

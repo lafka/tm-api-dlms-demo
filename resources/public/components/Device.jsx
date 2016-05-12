@@ -113,6 +113,8 @@ const fmt = {
       "20/0.0.13.0.0.255/2":     ['activity-calender',             null],
       "22/0.0.15.0.0.255/2":     ['single-action-schedule',        null],
       "70/0.0.96.3.10.255/2":    ['disconnect-control',            null, 'bool'],
+      "70/0.0.96.3.10.255/5":    ['disconnect-meter',              null, 'exec', '70/0.0.96.3.10.255/2'],
+      "70/0.0.96.3.10.255/6":    ['reconnect-meter',               null, 'exec', '70/0.0.96.3.10.255/2'],
 
 }
 
@@ -316,7 +318,8 @@ export default class Device extends React.Component {
       "1/0.128.128.0.5.255/2",
       "1/0.128.128.0.6.255/2",
       "1/0.128.128.0.7.255/2",
-      "70/0.0.96.3.10.255/2"
+      "70/0.0.96.3.10.255/5",
+      "70/0.0.96.3.10.255/6"
     ]
   }
 
@@ -491,27 +494,25 @@ class Value extends React.Component {
    render() {
       let {type, value, onChange} = this.props
 
-      console.log('type', value)
+      console.log('type', type, value)
 
       switch (type) {
          case 'int':
             return <FormControl
                      onChange={onChange}
-                     value={value}
-                     componentClass="text"
+                     value={value || ""}
                      placeholder="int" />
 
          case 'float':
             return <FormControl
-                        onChange={onChange}
-                     value={value}
-                     componentClass="text"
+                     onChange={onChange}
+                     value={value || ""}
                      placeholder="float" />
 
          case 'bit':
             return <FormControl
                         onChange={onChange}
-                        value={value}
+                        value={value || ""}
                         componentClass="select"
                         placeholder="...">
 
@@ -523,12 +524,15 @@ class Value extends React.Component {
             return <FormControl
                         onChange={onChange}
                         componentClass="select"
-                        value={value}
+                        value={value || ""}
                         placeholder="...">
 
                      <option value="true">true</option>
                      <option value="false">false</option>
                    </FormControl>
+
+         case 'exec':
+            return <span>-</span>
       }
    }
 }
@@ -566,7 +570,7 @@ class ConfigureView extends React.Component {
                      <tr key={k} className={(reading(code) ? 'reading ' : '') + (loading(code) ? 'loading' : '')}>
                         <td>{(fmt[code] || [])[0] || code}</td>
                         <td>{code}</td>
-                        <td>{fmtOrDummy(ref, code)}</td>
+                        <td>{fmtOrDummy(ref, (fmt[code] || [])[3] || code)}</td>
                         <td>
                            <Value
                               type={(fmt[code] || [])[2]}
@@ -578,13 +582,13 @@ class ConfigureView extends React.Component {
                            <Button
                               onClick={() => writeWorker(code, this.state[code])}
                               bsStyle='primary'
-                              disabled={loading(code) || unchanged(code)}>
-                              {loading(code) ? 'Loading ...' : 'Update Value'}
+                              disabled={(fmt[code] || [])[2] !== 'exec' && (loading(code) || unchanged(code))}>
+                              {loading(code) ? 'Loading ...' : ((fmt[code] || [])[2] === 'exec' ? 'Execute' : 'Update Value')}
                            </Button>
                            &nbsp;
                            <Button
-                              onClick={() => readWorker(code)}
-                              disabled={loading(code)}>
+                              onClick={() => readWorker((fmt[code] || [])[3] || code)}
+                              disabled={loading((fmt[code] || [])[3] || code)}>
                               {loading(code) ? 'Loading ...' : 'Fetch data'}
                            </Button>
                         </td>
