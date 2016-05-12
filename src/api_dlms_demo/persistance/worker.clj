@@ -99,20 +99,29 @@
 
    ))
 
-(defn write-code [conn iface obis attr type value]
+(defn write-code [conn ref target iface obis attr type value]
   (println "write: " iface "/" obis "/" attr " :: " type ": " value)
   (let [val (case type
-              "bool"  (DataObject/newBoolData (Boolean/parseBoolean value))
-              "bit"   (DataObject/newInteger16Data (Short/parseShort value))
-              "int"   (DataObject/newInteger16Data (Short/parseShort value))
+              "bool" (DataObject/newBoolData (Boolean/parseBoolean value))
+              "bit" (DataObject/newInteger16Data (Short/parseShort value))
+              "int" (DataObject/newInteger16Data (Short/parseShort value))
               "float" (DataObject/newFloat32Data (Float/parseFloat value)))
-        obis (new ObisCode obis)
-        attr (new AttributeAddress iface obis attr)
-        setter (new SetParameter attr val)]
+        obisobj (new ObisCode obis)
+        attrobj (new AttributeAddress iface obisobj attr)
+        setter (new SetParameter attrobj val)]
 
-    (clojure.pprint/pprint attr)
-    (clojure.pprint/pprint val)
-    (clojure.pprint/pprint (.set conn (into-array SetParameter [setter]))    )))
+    (.set conn (into-array SetParameter [setter]))
+
+    (publish-update value ref target [iface obis attr])
+
+    ;; re-read the data and publish
+    (-> conn
+        (read-code iface obis attr)
+        (fmt [iface obis attr] (.lastData conn))
+        (cache/add ref [iface obis attr])
+        (publish-update ref target [iface obis attr]))
+
+    ))
 
 
 (defn exec-code [conn iface obis attr]
@@ -140,7 +149,7 @@
 
   (case type
     "exec" (exec-code conn iface obis attr)
-    (write-code conn iface obis attr type value)
+    (write-code conn ref target iface obis attr type value)
     )
   ;(publish-purge ref target [iface obis attr])f
 
