@@ -248,7 +248,7 @@ public final class DataConverter {
 
             case FLOAT32:
                 buffer = ByteBuffer.allocate(4);
-                buffer.putDouble(value.floatValue());
+                buffer.putFloat((float) value.doubleValue()); // some reason they want to but a double for a float...
                 buffer.flip();
 
                 result.setfloat32(new AxdrOctetString(4, buffer.array()));

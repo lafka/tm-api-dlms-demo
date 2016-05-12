@@ -330,19 +330,17 @@ public class LnClientConnection2 extends ClientConnection {
 
     @Override
     protected void processPdu(COSEMpdu pdu) {
+        System.out.println("COSEMpdu -> " + pdu);
 
         try {
             switch (pdu.getChoiceIndex()) {
                 case GET_RESPONSE:
-                    System.out.println("APDU/GET_RESPONSE: " + pdu.get_response);
                     getResponseQueue.put(PduHelper.invokeIdFrom(pdu.get_response), pdu.get_response);
                     break;
                 case SET_RESPONSE:
-                    System.out.println("APDU/SET_RESPONSE: " + pdu.set_response);
                     setResponseQueue.put(PduHelper.invokeIdFrom(pdu.set_response), pdu.set_response);
                     break;
                 case ACTION_RESPONSE:
-                    System.out.println("APDU/ACTION_RESPONSE: " + pdu.action_response);
                     actionResponseQueue.put(PduHelper.invokeIdFrom(pdu.action_response), pdu.action_response);
                     break;
                 case EVENT_NOTIFICATION_REQUEST:
@@ -354,7 +352,6 @@ public class LnClientConnection2 extends ClientConnection {
                     break;
 
                 default:
-                    System.out.println("APDU/DEFAULT");
                     // TODO: handle this case..
             }
         } catch (InterruptedException e) {

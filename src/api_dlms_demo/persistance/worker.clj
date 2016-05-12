@@ -102,10 +102,10 @@
 (defn write-code [conn iface obis attr type value]
   (println "write: " iface "/" obis "/" attr " :: " type ": " value)
   (let [val (case type
-                  "bool"  (DataObject/newBoolData (Boolean/parseBoolean value))
-                  "bit"   (DataObject/newInteger16Data (Short/parseShort value))
-                  "int"   (DataObject/newInteger16Data (Short/parseShort value))
-                  "float" (DataObject/newFloat32Data (Float/parseFloat value)))
+              "bool"  (DataObject/newBoolData (Boolean/parseBoolean value))
+              "bit"   (DataObject/newInteger16Data (Short/parseShort value))
+              "int"   (DataObject/newInteger16Data (Short/parseShort value))
+              "float" (DataObject/newFloat32Data (Float/parseFloat value)))
         obis (new ObisCode obis)
         attr (new AttributeAddress iface obis attr)
         setter (new SetParameter attr val)]
