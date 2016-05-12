@@ -236,6 +236,7 @@
     (let [conn (.buildLnConnection2 (builder ref))]
       (CloudConnectionBuilder/connect conn)
       (clojure.pprint/pprint csp)
+      ;(.dataReceived conn (byte-array [0xc2 0x00 0x00 0x01 0x00 0x00 0x60 0x0b 0x00 0xff 0x02 0x12 0x00 0xfb]))
       (apply csp [conn])))
 
 (defn init []
@@ -280,3 +281,25 @@
       (println "handler/loop work was done")
       (recur)
       )))
+
+
+;
+;(def class_id (new org.openmuc.jdlms.internal.asn1.cosem.Unsigned16 1))
+;(def instance_id (new org.openmuc.jdlms.internal.asn1.cosem.Cosem_Object_Instance_Id (byte-array [0 0 96 11 0 255])))
+;(def attribute_id (new org.openmuc.jdlms.internal.asn1.cosem.Integer8 2))
+;
+;(def cosem_attribute_descriptor (new org.openmuc.jdlms.internal.asn1.cosem.Cosem_Attribute_Descriptor class_id instance_id attribute_id))
+;
+;(def data (new org.openmuc.jdlms.internal.asn1.cosem.Data))
+;(.setlong_unsigned data (new org.openmuc.jdlms.internal.asn1.cosem.Unsigned16 251))
+;
+;(def ev (new org.openmuc.jdlms.internal.asn1.cosem.EVENT_NOTIFICATION_Request nil cosem_attribute_descriptor data))
+;(def cosem (new org.openmuc.jdlms.internal.asn1.cosem.COSEMpdu))
+;(.setevent_notification_request cosem ev)
+;
+;
+;(def output (new org.openmuc.jasn1.ber.BerByteArrayOutputStream 100))
+;(.encode cosem output)
+;
+;(def buf (.getArray output))
+;(org.openmuc.jdlms.HexConverter/toHexString buf)
