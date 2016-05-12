@@ -65,7 +65,7 @@
 
 (defn publish-write-init [ref target [iface obis attr value]]
   (pubsub/publish ref {:ev     "data:write-init"
-                       :attr   {(string/join "/" [iface obis attr]) value}
+                       :attr   (string/join "/" [iface obis attr])
                        :future target
                        :where  "worker/write-codes"
                        }))
@@ -112,7 +112,7 @@
 
     (.set conn (into-array SetParameter [setter]))
 
-    (publish-update value ref target [iface obis attr])
+    (publish-read-init ref target [iface obis attr])
 
     ;; re-read the data and publish
     (-> conn
@@ -151,9 +151,12 @@
     "exec" (exec-code conn iface obis attr)
     (write-code conn ref target iface obis attr type value)
     )
+
   ;(publish-purge ref target [iface obis attr])f
 
-  (if (not= rest nil) (write-codes conn ref rest target)) )
+  (if (not= rest nil)
+    (write-codes conn ref rest target)
+    true) )
 
 (defn read-codes  [conn ref [ [iface obis attr n-try] & rest] target]
   (let [n-try (or n-try 0)]

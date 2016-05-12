@@ -525,7 +525,7 @@ class ConnState extends React.Component {
       switch (connState) {
          case 'reconnected':
             return !expired && <Alert bsStyle="success">
-               <Glyphicon glyph="repeat" />&nbsp; Reconnecting to backend
+               <Glyphicon glyph="repeat" />&nbsp; Reconnected to backend
             </Alert>
 
          case 'disconnected':

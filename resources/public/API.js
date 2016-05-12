@@ -326,7 +326,22 @@ class DataStore extends BaseStore {
                      delete this._futures[ev.ref][ev.data.future]
                      this.emitChange()
                   }
+               } else if (ev.data.ev === 'data:write-worker') {
+                  if ("queue" === ev.data.action) {
+                     this._futures[ev.ref] = this._futures[ev.ref] || {}
+                     this._futures[ev.ref][ev.data.future] = _.map( ev.data.attrs, a =>
+                        a.replace(/\/[^/]*$/, '')
+                     )
+                     this.emitChange()
+                  } else if ("done" === ev.data.action) {
+                     delete this._futures[ev.ref][ev.data.future]
+                     this.emitChange()
+                  }
                } else if (ev.data.ev === 'data:read-init') {
+                  this._pointers[ev.ref] = this._pointers[ev.ref] || {}
+                  this._pointers[ev.ref][ev.data.future] = ev.data.attr
+                  this.emitChange()
+               } else if (ev.data.ev === 'data:write-init') {
                   this._pointers[ev.ref] = this._pointers[ev.ref] || {}
                   this._pointers[ev.ref][ev.data.future] = ev.data.attr
                   this.emitChange()
