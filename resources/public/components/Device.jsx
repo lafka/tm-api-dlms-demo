@@ -2,6 +2,7 @@ import React from 'react'
 import Network from './Network.jsx'
 
 import {Row, Col, ListGroup, ListGroupItem, Button, Input, FormControl} from 'react-bootstrap'
+import {Alert, Glyphicon} from 'react-bootstrap'
 import Navigation from './Navigation.jsx'
 import {ConnActions, ConnStore, DataStore} from '../API.js'
 import {Base64Binary} from '../Base64.js'
@@ -146,7 +147,8 @@ export default class Device extends React.Component {
          lines: [],
          loadingReqs: {},
          tab: 'configure',
-         pointers: null
+         pointers: null,
+         connState: []
       }
 
 
@@ -166,7 +168,11 @@ export default class Device extends React.Component {
      .catch( (err) => this.setState({err}) )
 
     ConnStore.addChangeListener(this._changeListener = (ev) => {
-      this.forceUpdate()
+      let {connState} = this.state
+
+      if (ConnStore.state(ref) !== connState[0] || connState[0] === undefined)
+         this.setState({connState: _.concat([ConnStore.state(ref)], connState).slice(0, 2)})
+
     })
 
     DataStore.addChangeListener(this._changeListener2 = (ev) => {
@@ -393,10 +399,11 @@ export default class Device extends React.Component {
     window.URL.revokeObjectURL(url)
   }
 
+
   render() {
     let
       {nid, device} = this.props.params,
-      {loadingReqs, tab, pointers} = this.state,
+      {loadingReqs, tab, pointers, connState} = this.state,
       ref = nid + "/" + device,
       attrs = this[tab + 'Attrs']()
 
@@ -446,6 +453,9 @@ export default class Device extends React.Component {
 
             </Col>
             <Col xs={12} sm={10} style={{paddingTop: '38px'}}>
+
+               <ConnState state={connState} />
+
                {'configure' !== tab && <OutputTable
                   tab={tab}
                   device={ref}
@@ -473,6 +483,75 @@ export default class Device extends React.Component {
   }
 }
 
+class ConnState extends React.Component {
+   constructor(p) {
+      super(p)
+
+      this.state = {
+         timer: null,
+         expired: false
+      }
+   }
+
+   componentWillReceiveProps(nextProps) {
+      let
+         {timer} = this.state,
+         connState = this.connState(this.props.state)
+
+      if (!timer)
+         this.setState({expired: false,
+                        timer: setTimeout(() => this.setState({expired: true,
+                                                               timer: null}), 7500)})
+   }
+
+   connState(connState) {
+      let [a, b] = connState || []
+
+      if ('open' === a && 'closed' === b)
+         return 'reconnected'
+      else if ('closed' === a && 'open' === b)
+         return 'disconnected'
+      else if ('open' === a)
+         return 'connected'
+      else
+         return 'undefined'
+   }
+
+   render() {
+      let
+         connState = this.connState(this.props.state),
+         {timer, expired} = this.state
+
+      switch (connState) {
+         case 'reconnected':
+            return !expired && <Alert bsStyle="success">
+               <Glyphicon glyph="repeat" />&nbsp; Reconnecting to backend
+            </Alert>
+
+         case 'disconnected':
+            return !expired && <Alert bsStyle="warning">
+               <Glyphicon glyph="remove" />&nbsp; Backend disconnected.... Try refreshing the page
+            </Alert>
+
+         case 'connected':
+            return null
+            //return !expired && <Alert bsStyle="success">
+            //   <Glyphicon glyph="ok" />&nbsp; Backend connection established
+            //</Alert>
+
+         case 'connecting':
+            return !expired && <Alert bsStyle="warning">
+               <Glyphicon glyph="warning-sign" />&nbsp; Connecting to backend
+            </Alert>
+
+         case 'undefined':
+            return !expired && <Alert bsStyle="warning">
+               <Glyphicon glyph="warning-sign" />&nbsp; Waiting for connection to backend....
+            </Alert>
+      }
+   }
+}
+
 
 const fmtOrDummy = function(ref, code) {
    let val = (DataStore.attr(ref, code) || [])[0]
@@ -493,8 +572,6 @@ const rawOrDummy = function(ref, code) {
 class Value extends React.Component {
    render() {
       let {type, value, onChange} = this.props
-
-      console.log('type', type, value)
 
       switch (type) {
          case 'int':

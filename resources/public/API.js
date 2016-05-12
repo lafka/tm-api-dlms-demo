@@ -105,7 +105,7 @@ export const ConnActions = {
 
          let conn = new WebSocket("ws://" + window.location.host + "/api/connection/" + ref)
          conn.onerror = (err) => {
-            console.log('ws[' + ref + '] ERROR: ' + error)
+            console.log('ws[' + ref + '] ERROR: ', err)
             reject(err)
          }
 
@@ -225,6 +225,10 @@ class ConnStore extends BaseStore {
                break;
          }
       })
+   }
+
+   state(ref) {
+      return (this._connections[ref] || {}).state
    }
 
    isOpen(ref) {
