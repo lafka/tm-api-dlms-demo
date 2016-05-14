@@ -67,6 +67,14 @@
 
     (worker/init)
 
+
+    ;; ingress stream for events
+    ;(async/go-loop []
+    ;  (let [t (transport/-transport-factory (keyword "2/3CJsndr9J2gkI") nil)]
+    ;    (.startListening t nil)
+    ;    (recur)))
+
+
     (onelog.core/info "starting server")
     (server/start (read-string (options :port)))
     (onelog.core/info "server started")

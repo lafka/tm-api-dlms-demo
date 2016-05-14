@@ -25,7 +25,7 @@
      :dest        (new HdlcAddress 1) ;; is this right?
      :negotiation negotiation
      :queue       (async/chan)
-     :buffer      (byte-array [])  ; input buffer used block responses from tinymesh
+     :buffer      '()  ; input buffer used block responses from tinymesh
      } ))
 
 

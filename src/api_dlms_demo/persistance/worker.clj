@@ -81,15 +81,19 @@
   ([ref attrs] (handle ref attrs (crypto.random/hex 4)))
   ([ref attrs target] (handle ref attrs target true))
   ([ref attrs target notify]
-   (println "put work")
-   (async/>!! @workers [target ref attrs])
-   (println "work")
+   (let [on-err (fn [e]
+                  (pubsub/publish ref {:ev     "error"
+                                       :where  "worker/read"
+                                       :error  (str (type e) (.getMessage e))
+                                       :attrs   (map #(clojure.string/join "/" %) attrs)
+                                       :future target}))]
 
-    (pubsub/publish ref {:ev     "data:read-worker"
+      (async/>!! @workers [target ref attrs nil on-err])
+      (pubsub/publish ref {:ev     "data:read-worker"
                          :action :queue
                          :where  "worker/read"
                          :attrs   (map #(clojure.string/join "/" %) attrs)
-                         :future target})))
+                         :future target}))))
 
 (defn write
   ([ref attrs] (write ref attrs (crypto.random/hex 4)))
@@ -232,16 +236,30 @@
         )
       )))
 
-(defn with-conn [ref csp]
+(defn with-conn
+  ([ref csp] (with-conn ref csp nil))
+  ([ref csp on-error]
     (let [conn (.buildLnConnection2 (builder ref))]
-      (CloudConnectionBuilder/connect conn)
-      (clojure.pprint/pprint csp)
-      ;(.dataReceived conn (byte-array [0xc2 0x00 0x00 0x01 0x00 0x00 0x60 0x0b 0x00 0xff 0x02 0x12 0x00 0xfb]))
-      (apply csp [conn])))
+      (println "connecting!!!!" ref)
+      (clojure.pprint/pprint on-error)
+
+      (try
+        (let [f (future (CloudConnectionBuilder/connect conn))]
+          (.get f (.responseTimeout dlms/settings) java.util.concurrent.TimeUnit/MILLISECONDS)
+          (println "connected" ref)
+
+          (apply csp [conn]))
+
+        (catch TimeoutException e
+          (do
+            (.disconnect conn true)
+            (println "connection to " ref " timed out....")
+            (if on-error (on-error e)))))
+      )))
 
 (defn init []
   (async/go-loop []
-    (let [[target ref attrs & [fun]] (async/<!! @workers)]
+    (let [[target ref attrs & [fun & [on-error]]] (async/<!! @workers)]
       (try
 
         (with-conn ref
@@ -267,7 +285,9 @@
                          (.disconnect conn true))
 
                      true fun
-                     ))
+                     )
+                    on-error
+                   )
 
         (catch Exception e
           (do
