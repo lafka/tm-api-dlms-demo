@@ -322,11 +322,14 @@ class DataStore extends BaseStore {
 
                   this.emitChange();
                } else if (ev.data.ev === 'error') {
-                  if (!ev.data.future || !ev.data.attr)
+                  if (!ev.data.future || !(ev.data.attr || ev.data.attrs))
                      return
 
                   if ((this._futures[ev.ref] || {})[ev.data.future]) {
-                     this._futures[ev.ref][ev.data.future] = _.without(this._futures[ev.ref][ev.data.future], ev.data.attr)
+                     if (_.isArray(ev.data.attrs))
+                        _.each(ev.data.attrs, attr => this._futures[ev.ref][ev.data.future] = _.without(this._futures[ev.ref][ev.data.future], attr))
+                     else
+                        this._futures[ev.ref][ev.data.future] = _.without(this._futures[ev.ref][ev.data.future], ev.data.attr)
                   }
 
                   console.log('action-ev', ev.data.attr, ev.data.data);
