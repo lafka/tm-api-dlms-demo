@@ -20,10 +20,10 @@ class App extends React.Component {
    componentWillMount() {
       this._mounted = true
 
-      if (!localStorage.networks)
-         NetworkActions.listNetworks()
-      else
+      if (localStorage.networks)
          this.setState({networks: JSON.parse(localStorage.networks)})
+
+      NetworkActions.listNetworks()
 
       NetworkStore.addChangeListener( this._changeListener = () => {
          localStorage.networks = JSON.stringify(NetworkStore.networks)
