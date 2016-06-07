@@ -147,7 +147,7 @@ export default class Device extends React.Component {
       this.state = {
          lines: [],
          loadingReqs: {},
-         tab: 'configure',
+         tab: 'main',
          pointers: null,
          connState: []
       }
@@ -412,6 +412,12 @@ export default class Device extends React.Component {
     const loading = code => _.some(loadingReqs, m => -1 !== _.indexOf(m, code))
     const reading = code => _.some(pointers, m => code === m)
 
+    let
+      notLoading = _.without.apply(null,
+                                  [attrs].concat(_.flatten( _.values(loading)))),
+      notInDataStore = _.reject(notLoading, (attr) => undefined !== DataStore.attr(ref, attr)),
+      hasUnreadData = ! _.isEqual(notInDataStore, notLoading) && notInDataStore.length > 0
+
     return (
       <div>
          <Row>
@@ -428,7 +434,6 @@ export default class Device extends React.Component {
                <h4>Send command</h4>
 
                <ListGroup>
-                  <ListGroupItem className={tab == 'object_list' ? 'active' : ''} onClick={() => this.setState({tab: 'object_list'})}>Object List</ListGroupItem>
                   <ListGroupItem className={tab == 'main' ? 'active' : ''} onClick={() => this.setState({tab: 'main'})}>Read All</ListGroupItem>
                   <ListGroupItem className={tab == 'name' ? 'active' : ''} onClick={() => this.setState({tab: 'name'})}>Read name plate</ListGroupItem>
                   <ListGroupItem className={tab == 'daily' ? 'active' : ''} onClick={() => this.setState({tab: 'daily'})}>Daily Load</ListGroupItem>
@@ -442,6 +447,12 @@ export default class Device extends React.Component {
 
                {'object_list' !== tab && <Button onClick={() => this.readWorkerArr(attrs)} bsStyle="primary">Request Data from Meter</Button>}
                {'object_list' === tab && <Button onClick={() => this.readObjectList()} bsStyle="primary">Load Object List</Button>}
+
+               <br />
+               <br />
+
+               {hasUnreadData && <Button onClick={() => this.readWorkerArr(notInDataStore)} bsStyle="info">Read rest from Meter</Button>}
+
                <br />
 
                {_.map(loadingReqs, (req, k) =>
