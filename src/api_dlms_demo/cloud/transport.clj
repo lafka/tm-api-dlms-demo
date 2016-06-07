@@ -107,12 +107,17 @@
                 (try
                   (let [buf (.decode (Base64/getDecoder) (get-in data [:proto/tm :data]))
                         pkt-n (get-in data [:proto/tm :packet_number])
+                        blk-n (get-in data [:proto/tm :block])]
+                    (println "recv[" (alength buf) "] (" pkt-n blk-n ")" (str (HexConverter/toHexString buf)))
+                  )
+                  (let [buf (.decode (Base64/getDecoder) (get-in data [:proto/tm :data]))
+                        pkt-n (get-in data [:proto/tm :packet_number])
                         blk-n (get-in data [:proto/tm :block])
                         pkts (sort (conj ((deref state) :buffer) [pkt-n blk-n buf]))
                         [frame rest] (defragment-pkts pkts)
                         ]
 
-                    (println "recv[" (alength buf) "] (" pkt-n blk-n ")" (str (HexConverter/toHexString frame)))
+                    (println "frame[" (alength buf) "] (" pkt-n blk-n ")" (str (HexConverter/toHexString frame)))
 
                     (swap! state assoc :buffer rest)
 
@@ -168,8 +173,11 @@
 
 
       (sendraw [this buf]
-        (let [buf (.encodeToString (Base64/getEncoder) buf)
-              body (json/write-str {"proto/tm" {:type :command :command :serial :data buf}})]
+        (let [buf (byte-array buf) ; make sure this is a byte-array
+              b64buf (.encodeToString (Base64/getEncoder) buf)
+              body (json/write-str {"proto/tm" {:type :command :command :serial :data b64buf}})]
+
+          (println "send[" (alength buf) "] " (HexConverter/toHexString buf))
 
         (http-post (str "/message/" path "?ack=false") body options)
         nil))
