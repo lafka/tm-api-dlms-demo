@@ -5,7 +5,10 @@ import {Grid} from 'react-bootstrap'
 
 import {Index, Network, Device, NotFound} from './components/'
 
-import {NetworkStore, NetworkActions} from './API.js'
+import Storage from './state/Storage.js'
+import StorageActions from './state/StorageActions.js'
+import {WebSocketActions, WebSocketConn} from './state/ws.js'
+import {DLMSActions} from './state/DLMSActions.js'
 
 
 class App extends React.Component {
@@ -13,43 +16,63 @@ class App extends React.Component {
       super()
 
       this.state = {
-         networks: -1,
+         networks: [],      // all networks
+         subscriptions: [], // list of active subscriptions
+         backend: null
       }
    }
 
    componentWillMount() {
       this._mounted = true
 
-      if (localStorage.networks)
-         this.setState({networks: JSON.parse(localStorage.networks)})
+      WebSocketActions.open()
+         .then( (conn) => {
+            StorageActions.networks()
+            StorageActions.remoteRefresh()
 
-      NetworkActions.listNetworks()
+            this.setState({backend: conn})
+         })
 
-      NetworkStore.addChangeListener( this._changeListener = () => {
-         localStorage.networks = JSON.stringify(NetworkStore.networks)
-         this.setState({networks: NetworkStore.networks})
+      Storage.addChangeListener( this._changeListener = () => {
+         if (!_.isEqual( this.state.networks, Storage.networks)) {
+            this.setState({ networks: _.map(Storage.networks, _.clone)})
+            _.each(Storage.networks, (net) => DLMSActions.queue(net.key))
+         }
       })
+
+      WebSocketConn.addChangeListener(this._wsListener = () => {
+         if (!this._mounted)
+            return
+
+         this.setState({backend: WebSocketConn.conn})
+         StorageActions.networks()
+         StorageActions.remoteRefresh()
+      })
+
+
+      setInterval(() => WebSocketConn.closed() && StorageActions.remoteRefresh(), 45000)
    }
 
    componentWillUnmount() {
       this._mounted = false
 
-      NetworkStore.removeChangeListener( this._changeListener )
+      Storage.removeChangeListener( this._changeListener )
+      WebSocketConn.removeChangeListener( this._wsListener )
    }
 
    render() {
       console.log('render: app')
-      let {networks} = this.state
+      let {networks, subscriptions} = this.state
 
-      if (-1 === networks)
-         return (<Grid><h2>Loading....</h2></Grid>)
+      if (null === this.state.backend || WebSocketConn.closed())
+         return (<Grid><h2>Waiting for backend connection</h2></Grid>)
 
-      console.log(this.props.params, _.find(networks, {key: this.props.params.nid}))
       return (
          <Grid fluid={true}>
             {React.cloneElement(this.props.children, {
                networks: networks,
-               network: _.find(networks, {key: this.props.params.nid})
+               subscriptions: subscriptions,
+               network: Storage.network(this.props.params.nid || ""),
             })}
          </Grid>
       )

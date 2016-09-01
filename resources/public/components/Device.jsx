@@ -1,124 +1,18 @@
 import React from 'react'
-import Network from './Network.jsx'
 
 import {Row, Col, ListGroup, ListGroupItem, Button, Input, FormControl} from 'react-bootstrap'
 import {Alert, Glyphicon} from 'react-bootstrap'
+import {LinkContainer} from 'react-router-bootstrap'
 import Navigation from './Navigation.jsx'
-import {ConnActions, ConnStore, DataStore} from '../API.js'
 import {Base64Binary} from '../Base64.js'
 
-const fmtev = function(ev) {
-   switch (ev) {
-      case   7: return 'Event (7): Over voltage occurence';
-      case   8: return 'Event (8): Over voltage restoration';
-      case   9: return 'Event (9): Low voltage  occurence';
-      case  10: return 'Event (10): Low voltage restoration';
-      case  51: return 'Event (51): Reverse occurence';
-      case  52: return 'Event (52): Reverse restoration';
-      case  67: return 'Event (67): Over current occurence';
-      case  68: return 'Event (68): Over current restoration';
-      case  69: return 'Event (69): Earth load occurence';
-      case  70: return 'Event (70): Earth load restoration';
-      case 101: return 'Event (101): Power fail occrence';
-      case 102: return 'Event (102): Power fail restoration';
-      case 201: return 'Event (201): Magnetic occurence';
-      case 202: return 'Event (202): Magnetic restoration';
-      case 203: return 'Event (203): Nd occurence';
-      case 204: return 'Event (204): Nd restoration';
-      case 205: return 'Event (205): Low pf occurence';
-      case 206: return 'Event (206): Low pf restoration';
-      case 207: return 'Event (207): Neutral miss occurence';
-      case 208: return 'Event (208): Neutral miss restoration';
-      case 251: return 'Event (251): Cover Open';
-      case 301: return 'Event (301): Latch disconnection';
-      case 302: return 'Event (302): Latch reconnection';
-      default:
-         return 'Event (' + ev + '): Unknown'
-   }
-}
+import {groups, attrs} from './Device.attrs.js'
+import AttributeList from './AttributeList.jsx'
 
-const fmt = {
-      "1/0.0.42.0.0.255/2":      ['logical-device-name',           null],
-      "1/0.0.96.1.0.255/2":      ['meter-serial-number',           null],
-      "1/0.0.96.1.1.255/2":      ['manufacturers-name',            null],
-      "1/1.0.0.2.0.255/2":       ['firmware-version',              null],
-      "1/0.0.94.91.9.255/2":     ['meter-type',                    null],
-      "1/0.0.94.91.11.255/2":    ['category',                      null],
-      "1/0.0.94.91.12.255/2":    ['current-rating',                null],
-      "1/0.0.96.1.4.255/2":      ['manufactur-year',               null],
-      "1/1.0.0.8.0.255/2":       ['demand-integration-period',     null],
-      "1/1.0.0.8.4.255/2":       ['block-load-integration-period', null],
-      "1/1.0.0.8.5.255/2":       ['daily-load-capture-period',     null],
-      "1/0.0.94.91.0.255/2":     ['cumulative-tamper-count',       null],
-      "1/0.0.0.1.0.255/2":       ['cumulative-billing-count',      null],
-      "1/0.0.96.2.0.255/2":      ['programming-count',             null],
-      "1/0.0.96.11.0.255/2":     ['event0-code-object',            fmtev],
-      "1/0.0.96.11.1.255/2":     ['event1-code-object',            fmtev],
-      "1/0.0.96.11.2.255/2":     ['event2-code-object',            fmtev],
-      "1/0.0.96.11.3.255/2":     ['event3-code-object',            fmtev],
-      "1/0.0.96.11.4.255/2":     ['event4-code-object',            fmtev],
-      "1/0.0.0.1.1.255/2":       ['available-billing-cycles',      null],
-      "1/0.128.128.0.0.255/2":   ['over-current-for-cut-off',      null, 'int'],
-      "1/0.128.128.0.1.255/2":   ['over-load-for-cut-off',         null, 'int'],
-      "1/0.128.128.0.2.255/2":   ['connection-period-interval',    null, 'int'],
-      "1/0.128.128.0.3.255/2":   ['connection-lockout-time',       null, 'int'],
-      "1/0.128.128.0.4.255/2":   ['connection-time-repeat',        null, 'int'],
-      "1/0.128.128.0.5.255/2":   ['tamper-occurance-time',         null, 'int'],
-      "1/0.128.128.0.6.255/2":   ['tamper-restoration-time',       null, 'int'],
-      "1/0.128.128.0.7.255/2":   ['force-switch-enable',           null, 'bit'],
-      "3/1.0.12.7.0.255/2":      ['voltage',                       null],
-      "3/1.0.11.7.0.255/2":      ['phase-current',                 null],
-      "3/1.0.91.7.0.255/2":      ['neutral-current',               null],
-      "3/1.0.13.7.0.255/2":      ['signed-power-factor',           null],
-      "3/1.0.14.7.0.255/2":      ['frequency',                     null],
-      "3/1.0.9.7.0.255/2":       ['apparent-power',                null],
-      "3/1.0.1.7.0.255/2":       ['active-power',                  null],
-      "3/1.0.1.8.0.255/2":       ['cumulative-active-energy',      null],
-      "3/1.0.9.8.0.255/2":       ['cumulative-apparent-energy',    null],
-      "3/0.0.94.91.14.255/2":    ['cumulative-power-on',           null],
-      "3/1.0.12.27.0.255/2":     ['average-voltage',               null],
-      "3/1.0.1.29.0.255/2":      ['block-kwh',                     null],
-      "3/1.0.9.29.0.255/2":      ['bloack-kvah',                   null],
-      "3/0.0.0.1.2.255/2":       ['billing-date',                  null],
-      "3/1.0.13.0.0.255/2":      ['bp-average-power-factor',       null],
-      "3/1.0.1.8.1.255/2":       ['tz1-kwh',                       null],
-      "3/1.0.1.8.2.255/2":       ['tz2-kwh',                       null],
-      "3/1.0.1.8.3.255/2":       ['tz3-kwh',                       null],
-      "3/1.0.1.8.4.255/2":       ['tz4-kwh',                       null],
-      "3/1.0.9.8.1.255/2":       ['tz1-kvah',                      null],
-      "3/1.0.9.8.2.255/2":       ['tz2-kvah',                      null],
-      "3/1.0.9.8.3.255/2":       ['tz3-kvah',                      null],
-      "3/1.0.9.8.4.255/2":       ['tz4-kvah',                      null],
-      "3/1.0.94.91.14.255/2":    ['active-current',                null],
-      "3/0.0.94.91.13.255/2":    ['total-power-on-time',           null],
-      "4/1.0.1.6.0.255/2":       ['kw-md-with-date-and-time',      null],
-      "4/1.0.9.6.0.255/2":       ['kva-md-with-date-and-time',     null],
-      "7/1.0.94.91.0.255/2":     ['instantaneous-profile',         null],
-      "7/1.0.94.91.3.255/2":     ['instantaneous-scaler-profile',  null],
-      "7/1.0.99.1.0.255/2":      ['block-load-profile',            null],
-      "7/1.0.94.91.4.255/2":     ['block-load-scaler-profile',     null],
-      "7/1.0.99.2.0.255/2":      ['daily-load-profile',            null],
-      "7/1.0.94.91.5.255/2":     ['daily-load-scaler-profile',     null],
-      "7/1.0.98.1.0.255/2":      ['billing-profile',               null],
-      "7/1.0.94.91.6.255/2":     ['billing-scaler-profile',        null],
-      "7/1.0.94.91.7.255/2":     ['event0-scaler-profile',         null],
-      "7/0.0.99.98.0.255/2":     ['event0-profile',                null],
-      "7/0.0.99.98.1.255/2":     ['event1-profile',                null],
-      "7/0.0.99.98.2.255/2":     ['event2-profile',                null],
-      "7/0.0.99.98.3.255/2":     ['event3-profile',                null],
-      "7/0.0.99.98.4.255/2":     ['event4-profile',                null],
-      "7/0.0.94.91.10.255/2":    ['name-plate-detail',             null],
-      "8/0.0.1.0.0.255/2":       ['real-time-clock',               null],
-      "15/0.0.40.0.1.255/2":     ['association0',                  null],
-      "15/0.0.40.0.2.255/2":     ['association1',                  null],
-      "15/0.0.40.0.3.255/2":     ['association2',                  null],
-      "20/0.0.13.0.0.255/2":     ['activity-calender',             null],
-      "22/0.0.15.0.0.255/2":     ['single-action-schedule',        null],
-      "70/0.0.96.3.10.255/2":    ['disconnect-control',            null, 'bool'],
-      "70/0.0.96.3.10.255@1":    ['disconnect-meter',              null, 'exec', null, '70/0.0.96.3.10.255/2'],
-      "70/0.0.96.3.10.255@2":    ['reconnect-meter',               null, 'exec', null, '70/0.0.96.3.10.255/2'],
+import {NetworkState, Network} from './Network.jsx'
 
-}
+import WorkerQueue from '../state/WorkerQueue.js'
+import {DLMSActions} from '../state/DLMSActions.js'
 
 function ab2str(buf) {
   return String.fromCharCode.apply(null, new Uint16Array(buf));
@@ -141,282 +35,54 @@ const maybeFmt = function(k, v, fmt) {
 }
 
 export default class Device extends React.Component {
-  constructor() {
+   constructor() {
       super()
 
+      this._mounted = false
       this.state = {
-         lines: [],
-         loadingReqs: {},
-         tab: 'main',
-         pointers: null,
-         connState: []
+         queue: []
       }
 
+      this.queueAll = this.queueAll.bind(this)
+      this.cancelQueue = this.cancelQueue.bind(this)
+   }
 
-      this._mounted = false
-  }
+   componentWillMount() {
+      let {nid, device} = this.props.params,
+          resource = nid + '/' + device
 
-  componentWillMount() {
-    let {nid, device} = this.props.params,
-        ref = [nid,device].join("/")
-    this._mounted = true
-
-    ConnActions.open(ref)
-     .then( (conn) => {
-         ConnActions.listAttrs(ref)
-         this.setState({err: null})
+      this._mounted = true
+      WorkerQueue.addChangeListener(this._changeListener = () => {
+         let newQueue = WorkerQueue.device(resource)
+         if (this._mounted && !_.isEqual(this.state.queue, newQueue))
+            this.setState({queue: newQueue})
       })
-     .catch( (err) => this.setState({err}) )
 
-    ConnStore.addChangeListener(this._changeListener = (ev) => {
-      let {connState} = this.state
+      DLMSActions.queue(nid)
+      DLMSActions.attributes(resource)
+   }
 
-      if (ConnStore.state(ref) !== connState[0] || connState[0] === undefined)
-         this.setState({connState: _.concat([ConnStore.state(ref)], connState).slice(0, 2)})
+   componentWillUnmount() {
+      this._mounted = true
+   }
 
-    })
-
-    DataStore.addChangeListener(this._changeListener2 = (ev) => {
-      this.forceUpdate()
-      this.setState({
-         loadingReqs: DataStore.futures(ref),
-         pointers: DataStore.pointers(ref)
-      })
-    })
-  }
-
-  mainAttrs() {
-     return [
-        "1/0.0.42.0.0.255/2",
-        "1/0.0.96.1.0.255/2",
-        "1/0.0.96.1.1.255/2",
-        "1/1.0.0.2.0.255/2",
-        "1/0.0.94.91.9.255/2",
-        "1/0.0.94.91.11.255/2",
-        "1/0.0.94.91.12.255/2",
-        "1/0.0.96.1.4.255/2",
-        "1/1.0.0.8.0.255/2",
-        "1/1.0.0.8.4.255/2",
-        "1/1.0.0.8.5.255/2",
-        "1/0.0.94.91.0.255/2",
-        "1/0.0.0.1.0.255/2",
-        "1/0.0.96.2.0.255/2",
-        "1/0.0.96.11.0.255/2",
-        "1/0.0.96.11.1.255/2",
-        "1/0.0.96.11.2.255/2",
-        "1/0.0.96.11.3.255/2",
-        "1/0.0.96.11.4.255/2",
-        "1/0.0.0.1.1.255/2",
-        "1/0.128.128.0.0.255/2",
-        "1/0.128.128.0.1.255/2",
-        "1/0.128.128.0.2.255/2",
-        "1/0.128.128.0.3.255/2",
-        "1/0.128.128.0.4.255/2",
-        "1/0.128.128.0.5.255/2",
-        "1/0.128.128.0.6.255/2",
-        "1/0.128.128.0.7.255/2",
-
-        "3/1.0.12.7.0.255/2",
-        "3/1.0.11.7.0.255/2",
-        "3/1.0.91.7.0.255/2",
-        "3/1.0.13.7.0.255/2",
-        "3/1.0.14.7.0.255/2",
-        "3/1.0.9.7.0.255/2",
-        "3/1.0.1.7.0.255/2",
-        "3/1.0.1.8.0.255/2",
-        "3/1.0.9.8.0.255/2",
-        "3/0.0.94.91.14.255/2",
-        "3/1.0.12.27.0.255/2",
-        "3/1.0.1.29.0.255/2",
-        "3/1.0.9.29.0.255/2",
-        "3/0.0.0.1.2.255/2",
-        "3/1.0.13.0.0.255/2",
-        "3/1.0.1.8.1.255/2",
-        "3/1.0.1.8.2.255/2",
-        "3/1.0.1.8.3.255/2",
-        "3/1.0.1.8.4.255/2",
-        "3/1.0.9.8.1.255/2",
-        "3/1.0.9.8.2.255/2",
-        "3/1.0.9.8.3.255/2",
-        "3/1.0.9.8.4.255/2",
-        "3/1.0.94.91.14.255/2",
-        "3/0.0.94.91.13.255/2",
-
-        "4/1.0.1.6.0.255/2",
-        "4/1.0.9.6.0.255/2",
-
-        "8/0.0.1.0.0.255/2",
-
-        "20/0.0.13.0.0.255/2",
-
-        "22/0.0.15.0.0.255/2",
-
-        "70/0.0.96.3.10.255/2"
-      ]
-  }
-
-  nameAttrs() {
-    return [
-      "7/0.0.94.91.10.255/2", // name plate
-    ]
-  }
-
-  dailyAttrs() {
-    return [
-      "7/1.0.99.2.0.255/2",
-      "7/1.0.94.91.5.255/2"
-    ]
-  }
-
-  blockAttrs() {
-    return [
-      "7/1.0.99.1.0.255/2", // borked, IT'S INFINITE!!
-      "7/1.0.94.91.4.255/2", // rinse-repeat
-    ]
-  }
-
-  billingAttrs() {
-    return [
-      "7/1.0.98.1.0.255/2", // IOException ,unexpected end of stream
-      "7/1.0.94.91.6.255/2", // scaler profile
-    ]
-  }
-
-  billing_profileAttrs() {
-    return [
-      "7/1.0.94.91.0.255/2", // borked, Axdr
-      "7/1.0.94.91.3.255/2", // borked, 43 pkgs??/
-    ]
-  }
-
-  eventsAttrs() {
-    return [
-      "7/1.0.94.91.7.255/2", // scaler of events // scaler of events
-      "7/0.0.99.98.0.255/2", // long
-      "7/0.0.99.98.1.255/2", // longer
-      "7/0.0.99.98.2.255/2", // longest
-      "7/0.0.99.98.3.255/2", // out of this world
-      "7/0.0.99.98.4.255/2", // hyperdrive! Keep this in separate tab
-    ]
-  }
-
-  associationAttrs() {
-    return [
-      "15/0.0.40.0.1.255/2", // block error; assosication
-      "15/0.0.40.0.2.255/2", // assosication1
-      "15/0.0.40.0.3.255/2", // assosciation2
-    ]
-  }
-
-  object_listAttrs() {
-    return [
-      "2/0.0.40.0.0.255"
-    ]
-  }
-
-
-  configureAttrs() {
-    return [
-      "1/0.128.128.0.0.255/2",
-      "1/0.128.128.0.1.255/2",
-      "1/0.128.128.0.2.255/2",
-      "1/0.128.128.0.3.255/2",
-      "1/0.128.128.0.4.255/2",
-      "1/0.128.128.0.5.255/2",
-      "1/0.128.128.0.6.255/2",
-      "1/0.128.128.0.7.255/2",
-      "70/0.0.96.3.10.255@1",
-      "70/0.0.96.3.10.255@2"
-    ]
-  }
-
-
-
-  readWorkerArr(codes) {
+   queueAll(group) {
     let
       {nid, device} = this.props.params,
-      ref = nid + "/" + device
+      resource = nid + "/" + device
+      _.each(groups[group], (attr) => setTimeout(() => DLMSActions.read(resource, attrs[attr], attr), 0))
+   }
 
-    codes = _.map(codes, function(code) {
-      let [iface, obis, attr] = code.split("/")
-      return undefined === attr
-         ? [parseInt(iface), obis]
-         : [parseInt(iface), obis, parseInt(attr)]
-    })
-
-    ConnActions.readWorker(ref, codes )
-  }
-
-  readWorker(code) {
-    let
-      {nid, device} = this.props.params,
-      ref = nid + "/" + device,
-      [iface, obis, attr] = code.split("/")
-
-    ConnActions.readWorker(ref, [ [parseInt(iface), obis, parseInt(attr)] ] )
-  }
-
-  writeWorker(code, value) {
-    let
-      {nid, device} = this.props.params,
-      ref = nid + "/" + device,
-      [head, method] = code.split("@"),
-      [iface, obis, attr] = head.split("/")
-
-    ConnActions.writeWorker(ref, [ [parseInt(iface), obis, parseInt(method || attr), (fmt[code] || [])[2], value] ] )
-  }
-
-
-  readObjectList() {
-    let
-      {nid, device} = this.props.params,
-      ref = nid + "/" + device
-
-    ConnActions.readObjectList(ref)
-  }
-
-  generateCsv(ref) {
-    let data = "name;code;value;raw\r\n";
-
-
-    data += _.map(DataStore.attrs(ref), (row, k) => {
-      let raw = _.isString(row[0]) ? row[0] : b64th(row[0].raw)
-
-      return `${fmt[k][0]};${k};${maybeFmt(k, row[0].value, fmt[k][1])};${raw}`
-    }).join('\r\n')
-
-    return data
-  }
-
-  saveCsv(ref) {
-    let
-      blob = new Blob([this.generateCsv(ref)], {type: 'text/csv'}),
-      url  = window.URL.createObjectURL(blob),
-      a = document.createElement('a')
-
-    a.style = 'display: none'
-    a.href = url
-    a.download = 'dlms-data.csv'
-    a.click();
-    window.URL.revokeObjectURL(url)
-  }
-
+   cancelQueue() {
+      _.each(this.state.queue, (job) => setTimeout(() => DLMSActions.cancelConcrete(job), 0))
+   }
 
   render() {
     let
+      {network} = this.props,
       {nid, device} = this.props.params,
-      {loadingReqs, tab, pointers, connState} = this.state,
-      ref = nid + "/" + device,
-      attrs = this[tab + 'Attrs']()
-
-    const loading = code => _.some(loadingReqs, m => -1 !== _.indexOf(m, code))
-    const reading = code => _.some(pointers, m => code === m)
-
-    let
-      notLoading = _.without.apply(null,
-                                  [attrs].concat(_.flatten( _.values(loading)))),
-      notInDataStore = _.reject(notLoading, (attr) => undefined !== DataStore.attr(ref, attr)),
-      hasUnreadData = ! _.isEqual(notInDataStore, notLoading) && notInDataStore.length > 0
+      tab = this.props.location.query.tab || 'main',
+      ref = nid + "/" + device
 
     return (
       <div>
@@ -430,64 +96,47 @@ export default class Device extends React.Component {
          </Row>
 
          <Row>
-            <Col xs={12} sm={2}>
+            <Col xs={12} sm={3}>
                <h4>Send command</h4>
 
                <ListGroup>
-                  <ListGroupItem className={tab == 'main' ? 'active' : ''} onClick={() => this.setState({tab: 'main'})}>Read All</ListGroupItem>
-                  <ListGroupItem className={tab == 'name' ? 'active' : ''} onClick={() => this.setState({tab: 'name'})}>Read name plate</ListGroupItem>
-                  <ListGroupItem className={tab == 'daily' ? 'active' : ''} onClick={() => this.setState({tab: 'daily'})}>Daily Load</ListGroupItem>
-                  <ListGroupItem className={tab == 'block' ? 'active' : ''} onClick={() => this.setState({tab: 'block'})}>Block Load</ListGroupItem>
-                  <ListGroupItem className={tab == 'billing' ? 'active' : ''} onClick={() => this.setState({tab: 'billing'})}>Billing</ListGroupItem>
-                  <ListGroupItem className={tab == 'billing_profile' ? 'active' : ''} onClick={() => this.setState({tab: 'billing_profile'})}>Billing Profile</ListGroupItem>
-                  <ListGroupItem className={tab == 'events' ? 'active' : ''} onClick={() => this.setState({tab: 'events'})}>Events</ListGroupItem>
-                  <ListGroupItem className={tab == 'associations' ? 'active' : ''} onClick={() => this.setState({tab: 'association'})}>Associations</ListGroupItem>
-                  <ListGroupItem className={tab == 'configure' ? 'active' : ''} onClick={() => this.setState({tab: 'configure'})}>Configure Meter</ListGroupItem>
+                  <LinkContainer to={{pathname: `/device/${nid}/${device}`, query: {tab: `main`}}} active={tab==='main'}><ListGroupItem>Read All</ListGroupItem></LinkContainer>
+                  <LinkContainer to={{pathname: `/device/${nid}/${device}`, query: {tab: `name`}}}           ><ListGroupItem>Read name plate</ListGroupItem></LinkContainer>
+                  <LinkContainer to={{pathname: `/device/${nid}/${device}`, query: {tab: `daily`}}}          ><ListGroupItem>Daily Load</ListGroupItem></LinkContainer>
+                  <LinkContainer to={{pathname: `/device/${nid}/${device}`, query: {tab: `block`}}}          ><ListGroupItem>Block Load</ListGroupItem></LinkContainer>
+                  <LinkContainer to={{pathname: `/device/${nid}/${device}`, query: {tab: `billing`}}}        ><ListGroupItem>Billing</ListGroupItem></LinkContainer>
+                  <LinkContainer to={{pathname: `/device/${nid}/${device}`, query: {tab: `billing_profile`}}}><ListGroupItem>Billing Profile</ListGroupItem></LinkContainer>
+                  <LinkContainer to={{pathname: `/device/${nid}/${device}`, query: {tab: `events`}}}         ><ListGroupItem>Events</ListGroupItem></LinkContainer>
+                  <LinkContainer to={{pathname: `/device/${nid}/${device}`, query: {tab: `associations`}}}   ><ListGroupItem>Associations</ListGroupItem></LinkContainer>
+                  <LinkContainer to={{pathname: `/device/${nid}/${device}`, query: {tab: `configure`}}}      ><ListGroupItem>Configure Meter</ListGroupItem></LinkContainer>
                </ListGroup>
 
-               {'object_list' !== tab && <Button onClick={() => this.readWorkerArr(attrs)} bsStyle="primary">Request Data from Meter</Button>}
-               {'object_list' === tab && <Button onClick={() => this.readObjectList()} bsStyle="primary">Load Object List</Button>}
+               <Button onClick={() => this.queueAll(tab)}>Request all fields</Button>
+               <Button onClick={this.cancelQueue}>Cancel all jobs</Button>
 
-               <br />
-               <br />
+               <hr />
 
-               {hasUnreadData && <Button onClick={() => this.readWorkerArr(notInDataStore)} bsStyle="info">Read rest from Meter</Button>}
+               <h4>Jobs</h4>
 
-               <br />
+               {_.map(this.state.queue,
+                  (val, i) => <div className="job-item" key={i}>
+                     <a onClick={() => DLMSActions.cancelConcrete(val)}>
+                        <Glyphicon glyph="remove" style={{fontSize: '0.8em'}}>&nbsp;</Glyphicon>
+                        <b>{val[0]}:</b> <em>{val[2]}</em>
+                        {val[3] && <span> = {val[3][1]}</span>}
+                     </a>
+                  </div>)}
 
-               {_.map(loadingReqs, (req, k) =>
-                  _.size(req) > 0 && <span key={k}>
-                     <b>Loading:</b> <em>{k}</em> - <i>({_.size(req)} left)</i><br/>
-                  </span>
-               )}
-               <br />
-
-               <Button onClick={() => this.saveCsv(ref)}>Save as CSV/Excel</Button>
+               {this.state.queue.length === 0 && <h5>There are no requests in queue</h5>}
             </Col>
-            <Col xs={12} sm={10} style={{paddingTop: '38px'}}>
+            <Col xs={12} sm={9} style={{paddingTop: '38px'}}>
+               {network && <NetworkState network={this.props.network} />}
 
-               <ConnState state={connState} />
-
-               {'configure' !== tab && <OutputTable
-                  tab={tab}
-                  device={ref}
-                  attrs={attrs}
-                  reading={reading}
-                  loading={loading}
-                  readWorker={this.readWorker.bind(this)}
-                  readWorkerArr={this.readWorkerArr.bind(this)}
-                  readObjectList={this.readObjectList.bind(this)} />}
-
-               {'configure' === tab && <ConfigureView
-                  tab={tab}
-                  device={ref}
-                  attrs={attrs}
-                  reading={reading}
-                  loading={loading}
-                  readWorker={this.readWorker.bind(this)}
-                  writeWorker={this.writeWorker.bind(this)}
-                  readWorkerArr={this.readWorkerArr.bind(this)}
-                  readObjectList={this.readObjectList.bind(this)} />}
+               <AttributeList
+                  queue={this.state.queue}
+                  resource={nid + '/' + device}
+                  attrs={groups[tab]}
+                  definition={attrs} />
             </Col>
          </Row>
       </div>
@@ -495,276 +144,6 @@ export default class Device extends React.Component {
   }
 }
 
-class ConnState extends React.Component {
-   constructor(p) {
-      super(p)
-
-      this.state = {
-         timer: null,
-         expired: false
-      }
-   }
-
-   componentWillReceiveProps(nextProps) {
-      let
-         {timer} = this.state,
-         connState = this.connState(this.props.state)
-      if (_.isEqual(this.props.state, nextProps.state))
-         return
-
-      if (!timer)
-         this.setState({expired: false,
-                        timer: setTimeout(() => this.setState({expired: true,
-                                                               timer: null}), 7500)})
-   }
-
-   connState(connState) {
-      let [a, b] = connState || []
-
-      if ('open' === a && 'closed' === b)
-         return 'reconnected'
-      else if ('closed' === a && 'open' === b)
-         return 'disconnected'
-      else if ('open' === a)
-         return 'connected'
-      else
-         return 'undefined'
-   }
-
-   render() {
-      let
-         connState = this.connState(this.props.state),
-         {timer, expired} = this.state
-
-      switch (connState) {
-         case 'reconnected':
-            return !expired && <Alert bsStyle="success">
-               <Glyphicon glyph="repeat" />&nbsp; Reconnected to backend
-            </Alert>
-
-         case 'disconnected':
-            return !expired && <Alert bsStyle="warning">
-               <Glyphicon glyph="remove" />&nbsp; Backend disconnected.... Try refreshing the page
-            </Alert>
-
-         case 'connected':
-            return null
-            //return !expired && <Alert bsStyle="success">
-            //   <Glyphicon glyph="ok" />&nbsp; Backend connection established
-            //</Alert>
-
-         case 'connecting':
-            return !expired && <Alert bsStyle="warning">
-               <Glyphicon glyph="warning-sign" />&nbsp; Connecting to backend
-            </Alert>
-
-         case 'undefined':
-            return !expired && <Alert bsStyle="warning">
-               <Glyphicon glyph="warning-sign" />&nbsp; Waiting for connection to backend....
-            </Alert>
-      }
-   }
-}
-
-
-const fmtOrDummy = function(ref, code) {
-   let val = (DataStore.attr(ref, code) || [])[0]
-   if (val)
-      return _.isString(val) ? val : maybeFmt(code, val.value, (fmt[code] || {})[1])
-   else
-      return <span style={{width: 101 + "px"}} className="dummy-block">&nbsp;</span>
-}
-
-const rawOrDummy = function(ref, code) {
-   let val = (DataStore.attr(ref, code) || [])[0]
-   if (val)
-      return _.isString(val) ? val : b64th(val.raw)
-   else
-      return <span style={{width: 197  + "px"}} className="dummy-block">&nbsp;</span>
-}
-
-class Value extends React.Component {
-   render() {
-      let
-         {type, value, onChange, code} = this.props,
-         ref = this.props.device
-
-      if (!value) {
-         value = DataStore.attr(ref, code)
-
-         if (_.isArray(value))
-            value = value[0]
-
-         if (_.isObject(value) && value.value)
-            value = value.value
-         else if (_.isObject(value) && value.error)
-            value = "Error: " + value.error
-      }
-
-
-      switch (type) {
-         case 'int':
-            return <FormControl
-                     onChange={onChange}
-                     value={value || ""}
-                     placeholder="int" />
-
-         case 'float':
-            return <FormControl
-                     onChange={onChange}
-                     value={value || ""}
-                     placeholder="float" />
-
-         case 'bit':
-            return <FormControl
-                        onChange={onChange}
-                        value={value || ""}
-                        componentClass="select"
-                        placeholder="...">
-
-                     <option value="0">0</option>
-                     <option value="1">1</option>
-                   </FormControl>
-
-         case 'bool':
-            return <FormControl
-                        onChange={onChange}
-                        componentClass="select"
-                        value={value || ""}
-                        placeholder="...">
-
-                     <option value="true">true</option>
-                     <option value="false">false</option>
-                   </FormControl>
-
-         case 'exec':
-            return <span>{value}</span>
-      }
-   }
-}
-
-class ConfigureView extends React.Component {
-   constructor(p) {
-      super(p)
-
-      this.state = {}
-   }
-
-   render() {
-      let
-         {attrs, reading, loading, tab, readWorker, writeWorker} = this.props,
-         ref = this.props.device
-
-      const unchanged = code => undefined === this.state[code] || this.state[code] == ((DataStore.attr(ref, code) || [])[0] || {}).value
-
-      return (
-         <div className="configure-list">
-            <table className="table table-striped">
-               <thead>
-                  <tr>
-                     <th>Name</th>
-                     <th>LN</th>
-                     <th>Current Value</th>
-                     <th>Input Value</th>
-                     <th>#</th>
-                  </tr>
-               </thead>
-               <tbody>
-                  {_.map(attrs, (code, k) =>
-                     <tr key={k} className={(reading(code) ? 'reading ' : '') + (loading(code) ? 'loading' : '')}>
-                        <td>{(fmt[code] || [])[0] || code}</td>
-                        <td>{code}</td>
-                        <td>{fmtOrDummy(ref, (fmt[code] || [])[4] || code)}</td>
-                        <td>
-                           <Value
-                              device={ref}
-                              type={(fmt[code] || [])[2]}
-                              code={code}
-                              value={this.state[code]}
-                              onChange={ev => {let x = {}; x[code] = ev.target.value; this.setState(x)}}
-                              />
-                        </td>
-                        <td>
-                           <Button
-                              onClick={() => writeWorker(code, (fmt[code] || [])[3] || this.state[code])}
-                              bsStyle='primary'
-                              disabled={(fmt[code] || [])[2] !== 'exec' && (loading(code) || unchanged(code))}>
-                              {loading(code) ? 'Loading ...' : ((fmt[code] || [])[2] === 'exec' ? 'Execute' : 'Update Value')}
-                           </Button>
-                           &nbsp;
-                           <Button
-                              onClick={() => readWorker((fmt[code] || [])[4] || code)}
-                              disabled={loading((fmt[code] || [])[4] || code)}>
-                              {loading(code) ? 'Loading ...' : 'Fetch data'}
-                           </Button>
-                        </td>
-                     </tr>
-                  )}
-               </tbody>
-            </table>
-         </div>
-      )
-   }
-}
-
-class OutputTable extends React.Component {
-
-   render() {
-      let
-         {attrs, reading, loading, tab, readWorker, readObjectList, readWorkerArr} = this.props,
-         ref = this.props.device
-
-      return (
-         <div className="attr-list">
-            <table className="table table-striped">
-               <thead>
-                  <tr>
-                     <th>Name</th>
-                     <th>LN</th>
-                     <th>Value</th>
-                     <th>Raw</th>
-                     <th>#</th>
-                  </tr>
-               </thead>
-               <tbody>
-                  {_.map(attrs, (code, k) =>
-                     <tr key={k} className={(reading(code) ? 'reading ' : '') + (loading(code) ? 'loading' : '')}>
-                        <td>{(fmt[code] || [])[0] || code}</td>
-                        <td>{code}</td>
-                        <td>{fmtOrDummy(ref, code)}</td>
-                        <td>{rawOrDummy(ref, code)}</td>
-                        <td>
-                           <Button
-                              onClick={() => readWorker(code)}
-                              disabled={loading(code)}>
-                              {loading(code) ? 'Loading ...' : 'Reload'}
-                           </Button>
-                        </td>
-                     </tr>
-                  )}
-               </tbody>
-            </table>
-
-            {'object_list' !== tab && <Button onClick={() => readWorkerArr(attrs)} bsStyle="primary">Request Data from Meter</Button>}
-            {'object_list' === tab && <Button onClick={() => readObjectList()} bsStyle="primary">Load data</Button>}
-
-            <Button onClick={() => this.saveCsv(ref)}>Save as CSV/Excel</Button>
-         </div>
-      )
-   }
-}
-
-
 Device.title = "Device"
 Device.path = "/device/:nid/:device"
 Device.before = Network
-
-//                     {_.map(DataStore.attrs(ref), (row, k) =>
-//                        <tr key={k}>
-//                           <td>{fmt[k][0] || k}</td>
-//                           <td>{k}</td>
-//                           <td>{_.isString(row[0]) ? row[0] : maybeFmt(k, row[0].value, fmt[k][1])}</td>
-//                           <td>{_.isString(row[0]) ? row[0] : b64th(row[0].raw)}</td>
-//                           <td><Button onClick={() => this.readWorker(k)}>Reload</Button></td>
-//                        </tr>
-//                     )}

@@ -1,15 +1,53 @@
 import React from 'react'
 
 import {Row, Col, ListGroup, ListGroupItem} from 'react-bootstrap'
+import {Alert, Glyphicon} from 'react-bootstrap'
 import {LinkContainer} from 'react-router-bootstrap'
 import Navigation from './Navigation.jsx'
 
+import StorageActions from '../state/StorageActions.js'
+import Storage from '../state/Storage.js'
+
 export default class Network extends React.Component {
+   constructor() {
+      super()
+
+      this.state = {devices: null}
+   }
+
+   componentWillMount() {
+      this._mounted = true
+
+      Storage.addChangeListener( this._changeListener = () => {
+         this.setState({devices: Storage.devices(this.props.params.nid)})
+      })
+
+
+      if (this.props.network) {
+         StorageActions.devices(this.props.network.key)
+      }
+   }
+
+   componentWillReceiveProps(nextProps) {
+      if (nextProps.network) {
+         StorageActions.devices(nextProps.network.key)
+      }
+   }
+
+   componentWillUnmount() {
+      this._mounted = false
+      Storage.removeChangeListener(this._changeListener)
+   }
+
    render() {
       // app feeds the network... no point in having changelisteners here
-      let {network} = this.props
+      let {network} = this.props,
+          devices = this.state.devices
 
       console.log('render: network ' + this.props.params.nid)
+
+      if (!devices)
+         return (<div><h2>Loading network....</h2></div>)
 
       return (
          <div>
@@ -23,9 +61,12 @@ export default class Network extends React.Component {
             </Row>
 
             <Row>
+
+               <NetworkState network={network} />
+
                <Col xs={12}>
                   <ListGroup>
-                     {_.map(network.devices, (dev , idx) =>
+                     {_.map(devices, (dev , idx) =>
                         <LinkContainer key={idx} to={{pathname: `/device/${dev.network}/${dev.key}`}}>
                            <ListGroupItem className={`type-${dev.type}`}>
                               {dev.type} &ndash; {dev.name || dev.key}
@@ -42,6 +83,21 @@ export default class Network extends React.Component {
             </Row>
          </div>
       )
+   }
+}
+
+export class NetworkState extends React.Component {
+   render() {
+      let {network} = this.props
+
+      if (true === network['locked?'])
+            return <Alert bsStyle="warning">
+               <Glyphicon glyph="warning-sign" />&nbsp; 
+
+               <b>Info:</b> No connection to Gateway, requests will be queued...
+            </Alert>
+
+      return null
    }
 }
 

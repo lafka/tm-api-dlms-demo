@@ -249,9 +249,6 @@ class ConnStore extends BaseStore {
 let connstore = new ConnStore()
 export {connstore as ConnStore}
 
-Dispatcher.register( (ev) => {
-} )
-
 class NetworkStore extends BaseStore {
    constructor() {
       super()
@@ -263,16 +260,36 @@ class NetworkStore extends BaseStore {
 
          switch (action) {
             case Constants['networks:refresh']:
-               this._networks = ev.networks
+               this._networks = _.map(ev.networks, this.projectConnState)
                this.emitChange()
+
+               console.log(this._networks)
                break
 
             case Constants['network:refresh']:
-               this._networks[ev.network.key] = ev.network
+               this._networks[ev.network.key] = _.map([ev.network], this.projectConnState)
                this.emitChange()
                break
          }
       })
+   }
+
+   projectConnState(net) {
+      net.connected = []
+      net.disconnected = []
+      net.lastSeen = -1
+
+      _.each(_.filter(net.devices, ({type}) => "gateway" === type),
+             ({key, meta}) => {
+               if (meta.disconnected > net.lastSeen)
+                  net.lastSeen = meta.disconnected
+               if (meta.disconnected < meta.connected)
+                  net.connected.push(key)
+               else
+                  net.disconnected.push(key)
+            })
+
+      return net
    }
 
    network(nid) {
