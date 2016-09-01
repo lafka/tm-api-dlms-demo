@@ -1,4 +1,5 @@
 (ns api-dlms-demo.meter.hdlc.debug
+  (:require [clojure.string :as string])
   (:import (org.openmuc.jdlms.internal.transportlayer.hdlc FrameType HdlcFrame FrameRejectReason)
            (java.util Base64)))
 
@@ -49,13 +50,19 @@
     )
   )
 
+
+(defn hexify [buf]
+  (string/join " "
+               (map #(format "%02x" (bit-and 255 %))
+                    buf)))
+
 (defn debug [frame]
   {
    :type              (frame-type frame)
    :src-addr          (src-addr frame)
    :dest-addr         (dest-addr frame)
    :information-field (if (not= nil (information-field frame))
-                        (.encodeToString (Base64/getEncoder) (information-field frame))
+                        (hexify (information-field frame))
                         nil)
    :send-seq          (send-seq frame)
    :recv-seq          (recv-seq frame)

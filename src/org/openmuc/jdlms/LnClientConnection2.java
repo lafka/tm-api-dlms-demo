@@ -104,7 +104,6 @@ public class LnClientConnection2 extends ClientConnection {
         COSEMpdu pdu = createGetPdu(id, params);
         send(pdu);
 
-        System.out.println("waiting for a response");
         GET_Response response = getResponseQueue.poll(invokeId, connectionSettings().responseTimeout());
 
         List<GetResult> result = new ArrayList<GetResult>(params.length);
@@ -330,7 +329,7 @@ public class LnClientConnection2 extends ClientConnection {
 
     @Override
     protected void processPdu(COSEMpdu pdu) {
-        System.out.println("COSEMpdu -> " + pdu);
+        System.out.println("received: COSEMpdu -> " + pdu);
 
         try {
             switch (pdu.getChoiceIndex()) {

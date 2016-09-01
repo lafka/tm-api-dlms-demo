@@ -13,8 +13,8 @@
        (byte-array (map byte "tinymesh")) ;; systemTitle
        0                                  ;; challengeLength
        0                                  ;; deviceId
-       30000                               ;; responseTimeout
-       30000                               ;; messageFragmentTimeout
+       5000                               ;; responseTimeout
+       10000                              ;; messageFragmentTimeout
        ""                                 ;; manufactureId
        DataTransmissionLevel/UNENCRYPTED  ;; dataTransmissionLevel
        0                                  ;; clientAccessPoint

@@ -1,28 +1,33 @@
 (ns api-dlms-demo.store.network
-  (:refer-clojure :exclude (list get)))
+  (:refer-clojure :exclude (list get))
+  (:require [api-dlms-demo.store.pubsub :as pubsub]
+            [api-dlms-demo.store.lock :as lock]))
 
 (def networks (atom {}))
 
+(defn project [nid net]
+  (println "network/project" nid)
+  (assoc net :locked? (lock/locked? nid)))
+
 (defn list []
-  @networks)
+  (into {} (map (fn [ [nid net]] [nid (project nid net)]) @networks)))
 
 (defn get [nid]
-  (@networks nid))
+  (let [net (@networks nid)]
+    (if (nil? net)
+      nil
+      (project nid net))))
 
 (defn put [nid attrs]
-  (swap! networks assoc nid attrs))
+  (swap! networks assoc nid attrs)
+  (pubsub/publish :network nid (project nid (@networks nid))))
 
 (defn delete [nid]
   (let [old-attrs (get nid)]
     (swap! networks dissoc nid)
     old-attrs))
 
-(defn populate-item [dev]
-  (let [nid (clojure.core/get dev :network)
-        key (clojure.core/get dev :key)]
-
-    (put (str nid "/" key) dev)))
-
 (defn populate [coll]
-  (let [update (into {} (map (fn [v] [(clojure.core/get v :key) v]) coll))]
+  (let [update (into {} (map (fn [v] [(keyword (clojure.core/get v :key)) v]) coll))]
+    (map (fn [net] (pubsub/publish :network (clojure.core/get net :key) (project (clojure.core/get net :key) net))) update)
     (reset! networks update)))

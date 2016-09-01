@@ -8,30 +8,13 @@
             [compojure.route :as route]
             [compojure.handler :refer [site]]
             [clojure.data.json :as json]
-            [http.async.client :as http]
-            [api-dlms-demo.store.network :as networks]
-            [api-dlms-demo.store.device :as devices]
-            [api-dlms-demo.connection :as connection]
-            [ring.util.response :as response]))
-
-(def options {:remote "http://http.stage.highlands.tiny-mesh.com/v2"
-               :user "dev@nyx.co"
-               :password "1qaz!QAZ"})
-
-(defn http-get [path options]
-  (let [remote (get options :remote)
-        user (get options :user)
-        password (get options :password)
-        endpoint (str remote path)]
-
-    (with-open [client (http/create-client )]
-      (println "GET " endpoint)
-      (let [resp (http/GET client endpoint :auth {:type :basic :user user :password password :preemptive true})]
-        (json/read-str
-          (-> resp
-            http/await
-            http/string)
-          :key-fn #(keyword %))))))
+            [api-dlms-demo.persistance.net-connectivity :as net-connectivity]
+            [api-dlms-demo.connection2 :as connection2]
+            [api-dlms-demo.options :as options]
+            [api-dlms-demo.store.device :as device]
+            [no.tinymesh.-api.http :as api-http]
+            [api-dlms-demo.store.network :as network]
+            [api-dlms-demo.util :as util]))
 
 (defn json-response [data & [status]]
   {:status (or status 200)
@@ -41,47 +24,8 @@
 (defn not-found-response []
   (json-response {:error "not found"} 404))
 
-(defn project-net [nid]
-  (let [network (networks/get nid)]
-    (if (= nil network)
-      nil
-      (assoc network :devices (devices/list nid))
-      )))
-
-(defn post-network [nid]
-  (let [network (http-get (str "/network/" nid) options)
-        devices (http-get (str "/device/" nid) options)]
-
-    (networks/put nid network)
-    (devices/populate devices)
-
-    (json-response (project-net nid) 205)))
-
-(defn get-networks []
-  (let [networks (http-get (str "/network") options)]
-
-    ;; populate devices in parallel
-    (doall (pmap #(devices/populate (http-get (str "/device/" (get % :key)) options))
-                 networks))
-
-    (networks/populate networks)
-
-    (json-response (map #(project-net (get % :key)) networks) 200)))
-
-
-(defn get-network [nid]
-  (let [network (project-net nid)]
-    (cond
-      (= nil network) (not-found-response)
-      :else (json-response network 200)
-      )))
-
-
 (defroutes app-routes
-  (GET  "/api/network" [] (get-networks))
-  (GET  "/api/network/:nid" [nid] (get-network nid))
-  (POST "/api/network/:nid" [nid] (post-network nid))
-  (GET "/api/connection/:nid/:device" [] connection/handler)
+  (GET "/ws" [] connection2/handler)
   (GET "/favicon.ico"  [] {:status (or status 404)
                            :headers {"Content-Type" "text/plain"}
                            :body ""})
@@ -94,6 +38,21 @@
 
 
 (defn start [port]
+  (let [
+        pred (fn [ [{status :code} body _resp] ]
+               (assert (= 200 status))
+               body)
+
+        fun  #(api-http/networks (options/get))
+        get-devs #(api-http/devices (get % :key) (options/get))]
+
+    (util/forever #(let [networks (util/backoff 1000 2 60000 fun pred)]
+                    (network/populate networks)
+                    (doall (pmap (fn [n] (device/populate
+                                           (util/backoff 1000 2 60000 (fn [] (get-devs n)) pred)))
+                                 networks))
+                    (net-connectivity/ensure-network-streams))))
+
   (-> (site #'app-routes)
       (logger/wrap-with-logger)
       (reload/wrap-reload)

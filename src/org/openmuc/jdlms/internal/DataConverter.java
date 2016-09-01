@@ -57,7 +57,7 @@ import org.openmuc.jdlms.internal.asn1.cosem.Unsigned8;
 public final class DataConverter {
 
     public static DataObject toApi(Data pdu) {
-        System.out.println("DataObject PDU -> " + pdu);
+        //System.out.println("DataObject PDU -> " + pdu);
         Choices choice = pdu.getChoiceIndex();
         ByteBuffer buf;
         List<DataObject> innerData;

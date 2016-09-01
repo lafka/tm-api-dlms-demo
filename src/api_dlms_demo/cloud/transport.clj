@@ -5,7 +5,8 @@
             [api-dlms-demo.pubsub :as pubsub]
             [api-dlms-demo.meter.hdlc :as hdlc]
             [api-dlms-demo.meter.hdlc.debug :as debug]
-            [http.async.client :as http])
+            [http.async.client :as http]
+            [api-dlms-demo.options :as options])
   (:import (org.openmuc.jdlms HexConverter)
            (java.util Arrays Base64)
            (api_dlms_demo.cloud CloudTransportLayerConnection ICloudTransportLayerConnection)
@@ -13,12 +14,9 @@
            (org.openmuc.jdlms.internal.transportlayer.hdlc FrameType)
            (org.openmuc.jdlms.internal.asn1.cosem COSEMpdu)))
 
-
-(def cliopts (atom {:remote "http://http.stage.highlands.tiny-mesh.com/v2",
-                    :user "dev@nyx.co",
-                    :password "1qaz!QAZ",
-                    :verbosity 0}))
-
+(def cache (atom {}))
+(defn cache-set [device val] (swap! cache assoc device val))
+(defn cache-get [device] (@cache device))
 
 (defn http-post [path body options]
   (let [remote (get options :remote)
@@ -46,23 +44,14 @@
 
     (println "HDLC " (debug/debug frame))
 
-
-
     (async/put! pipeline frame)
-
-    (try
-      (let [cosem (new COSEMpdu)]
-        (.decode cosem (new ByteArrayInputStream (byte-array (drop 3 (.informationField frame)))))
-        (pubsub/publish ref {:ev :parsed
-                             :origin "transport/dlms"
-                             :dlms (.toString cosem)}))
-    (catch Exception e nil))
 
     (cond
       (and (not= nil listener) (= FrameType/INFORMATION (.frameType frame)))
         (do
           (swap! state hdlc/inc-recv-seq)
-          (.dataReceived listener (byte-array (drop 3 (.informationField frame))))))
+          (cache-set ref (map #(bit-and 255 %) (.informationField frame)))
+          (.dataReceived listener (byte-array (drop 3 (map #(bit-and 255 %) (.informationField frame)))))))
     ))
 
 (defn find-frame [pkts]
@@ -90,7 +79,11 @@
     (let [url (str (get options :remote) "/messages/" path "?data.encoding=base64&date.from=NOW&stream=true&continuous=true")
           user (get options :user)
           password (get options :password)
-          resp (http/stream-seq client :get url :auth {:type :basic :user user :password password :preemptive true})]
+          resp (http/stream-seq client :get url :auth {:type :basic
+                                                       :user user
+                                                       :password password
+                                                       :preemptive true
+                                                       :timeout -1})]
 
       (println "transport/stream " url)
       (pubsub/publish (keyword path) {:ev :connect :origin :cloud})
@@ -107,17 +100,10 @@
                 (try
                   (let [buf (.decode (Base64/getDecoder) (get-in data [:proto/tm :data]))
                         pkt-n (get-in data [:proto/tm :packet_number])
-                        blk-n (get-in data [:proto/tm :block])]
-                    (println "recv[" (alength buf) "] (" pkt-n blk-n ")" (str (HexConverter/toHexString buf)))
-                  )
-                  (let [buf (.decode (Base64/getDecoder) (get-in data [:proto/tm :data]))
-                        pkt-n (get-in data [:proto/tm :packet_number])
                         blk-n (get-in data [:proto/tm :block])
+                        _ (println "recv[" (alength buf) "] (" pkt-n blk-n ")" (debug/hexify buf))
                         pkts (sort (conj ((deref state) :buffer) [pkt-n blk-n buf]))
-                        [frame rest] (defragment-pkts pkts)
-                        ]
-
-                    (println "frame[" (alength buf) "] (" pkt-n blk-n ")" (str (HexConverter/toHexString frame)))
+                        [frame rest] (defragment-pkts pkts)]
 
                     (swap! state assoc :buffer rest)
 
@@ -128,8 +114,9 @@
                               listener
                               state)))
 
-                  (catch Exception e (println "CAUGHT " (.toString e))))
-                (pubsub/publish (keyword path) (merge {:ev :meta :origin "transport/cloud"} data))
+                  (catch Exception e
+                    (println "transport CAUGHT EXCEPTION")
+                    (.printStackTrace e)))
                 ))
           ))
 
@@ -145,7 +132,7 @@
   (let [state (atom (hdlc/init ref))
         path (subs (str ref) 1)
         pipeline (async/chan)
-        options @cliopts]
+        options (options/get)]
 
     (reify ICloudTransportLayerConnection
       (startListening [this listener]
@@ -157,11 +144,16 @@
           ; first update state to avoid deadlock where connect fails
           (swap! state assoc :resp resp)
 
+
           (let [ [resp newstate] (hdlc/connect this @state)]
             (case resp
               :ack (reset! state newstate)
-              :disconnect (throw (EOFException. "remote sent disconnect"))
-              (throw (EOFException. "hdlc connection failed")))
+              :disconnect (do
+                            (http/close resp)
+                            (throw (EOFException. "remote sent disconnect")))
+              (do
+                (http/close resp)
+                (throw (EOFException. "hdlc connection failed"))))
             )
           )
 
@@ -177,7 +169,7 @@
               b64buf (.encodeToString (Base64/getEncoder) buf)
               body (json/write-str {"proto/tm" {:type :command :command :serial :data b64buf}})]
 
-          (println "send[" (alength buf) "] " (HexConverter/toHexString buf))
+          (println "send[" (alength buf) "] " (debug/hexify buf))
 
         (http-post (str "/message/" path "?ack=false") body options)
         nil))

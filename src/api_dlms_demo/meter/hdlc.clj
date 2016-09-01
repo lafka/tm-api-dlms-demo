@@ -2,17 +2,18 @@
   (:require [api-dlms-demo.pubsub :as pubsub]
             [api-dlms-demo.meter.hdlc.debug :as debug]
             [clojure.core.async :as async])
-  (:import (org.openmuc.jdlms.internal.transportlayer.hdlc HdlcFrame HdlcAddressPair HdlcAddress FrameType HdlcParameterNegotiation)
+  (:import (org.openmuc.jdlms.internal.transportlayer.hdlc HdlcFrame HdlcAddressPair HdlcAddress FrameType)
            (java.io ByteArrayInputStream)
            (api_dlms_demo.meter ParameterNegotiation)
-           (java.util Arrays)))
+           (java.util Arrays)
+           (org.openmuc.jdlms HexConverter)))
 
 
 
 (defn init [ref]
   (let [
-        recv-info-size 128
-        send-info-size 128
+        recv-info-size 256
+        send-info-size 256
         send-window-size 1
         recv-window-size 1
         negotiation (new ParameterNegotiation recv-info-size recv-window-size send-info-size send-window-size)]
@@ -107,10 +108,7 @@
   (let [[frame state] (build-snrm state true)
         encoded (encode frame)]
 
-    (pubsub/publish (state :ref) {:ev     :hdlc
-                                      :origin "transport/send"
-                                      :hdlc   (debug/debug frame)
-                                      :raw    encoded})
+    (println "hdlc/connect " (debug/debug (decode encoded)))
 
     (.sendraw transport encoded)
 
@@ -133,11 +131,7 @@
   (let [[frame state] (build-disconnect state true)
         encoded (encode frame)]
 
-
-    (pubsub/publish (state :ref) {:ev     :hdlc
-                                  :origin "transport/send"
-                                  :hdlc   (debug/debug frame)
-                                  :raw    encoded})
+    (println "hdlc/disconnect " (HexConverter/toHexString encoded))
 
     (.sendraw transport encoded)
 

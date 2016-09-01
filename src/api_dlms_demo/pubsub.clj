@@ -12,8 +12,5 @@
 (defn subscribe [topic chan]
   (async/sub publication topic chan))
 
-(defn unsubscribe [topic chan]
-  (async/unsub publication topic chan))
-
 (defn close [topic]
   (async/unsub-all topic))
